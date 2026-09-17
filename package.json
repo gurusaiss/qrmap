@@ -1,0 +1,49 @@
+{
+  "name": "merchant-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "tsx src/modules/db/migrate.ts",
+    "db:seed": "tsx src/modules/db/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:isolation": "vitest run src/modules/tenancy/__tests__",
+    "verify": "npm run typecheck && npm run test"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.6",
+    "jsqr": "^1.4.0",
+    "next": "16.3.5",
+    "pdf-lib": "^1.17.1",
+    "postgres": "^3.4.7",
+    "qrcode": "^1.5.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "server-only": "^0.0.1",
+    "sharp": "^0.34.4",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/node": "^22.18.8",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.1",
+    "drizzle-kit": "^0.31.5",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

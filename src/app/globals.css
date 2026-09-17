@@ -1,0 +1,107 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens.
+ *
+ * The public page uses a SYSTEM FONT STACK deliberately: a webfont costs
+ * 15-40 KB and a render delay on a page whose whole promise is opening
+ * instantly on a low-end phone over a slow network.
+ */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+
+  --color-ink-900: #0f1115;
+  --color-ink-700: #2b2f38;
+  --color-ink-500: #565d6b;
+  --color-ink-400: #7b8290;
+  --color-ink-200: #d9dde4;
+  --color-ink-100: #eef1f5;
+  --color-ink-50: #f7f9fb;
+
+  --color-brand-600: #1d4ed8;
+  --color-brand-700: #1a43b8;
+  --color-brand-50: #eef4ff;
+
+  --color-success-600: #15803d;
+  --color-success-50: #ecfdf3;
+  --color-warning-600: #b45309;
+  --color-warning-50: #fffbeb;
+  --color-danger-600: #b91c1c;
+  --color-danger-50: #fef2f2;
+
+  --radius-card: 14px;
+}
+
+:root {
+  /* Overridden per merchant, within a contrast-checked range. */
+  --accent: var(--color-brand-600);
+  --accent-contrast: #ffffff;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-ink-50);
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+  /* 16px minimum on the public page: never 14. */
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Respect the reader's motion preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Visible focus for keyboard users. */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--color-brand-600);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Touch targets are at least 44px on anything a customer taps. */
+.tap-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-card);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-ink-100) 25%, var(--color-ink-50) 37%, var(--color-ink-100) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

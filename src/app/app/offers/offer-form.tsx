@@ -1,0 +1,70 @@
+'use client';
+
+import { useActionState, useState } from 'react';
+import { Button, ErrorText, Field, Input, Select, SuccessText, Textarea } from '@/components/ui';
+import { createOfferAction, type FormState } from '../actions';
+
+const initial: FormState = {};
+
+/**
+ * Presets first, custom dates second: dates are the hardest input for this
+ * user, so the common cases (today, this week, this month, weekends) are
+ * one tap rather than two date pickers.
+ */
+export function OfferForm() {
+  const [state, action, pending] = useActionState(createOfferAction, initial);
+  const [preset, setPreset] = useState('today');
+
+  return (
+    <form action={action} key={state.success ? Math.random() : 'form'} className="card space-y-3 p-4">
+      <ErrorText>{state.error}</ErrorText>
+      <SuccessText>{state.success}</SuccessText>
+
+      <Field label="Offer title">
+        <Input name="title" required maxLength={120} placeholder="Festival offer — ₹99 haircut" />
+      </Field>
+
+      <Field label="Details" hint="Optional">
+        <Textarea name="description" maxLength={1000} />
+      </Field>
+
+      <Field label="How long does it run?">
+        <Select name="preset" value={preset} onChange={(e) => setPreset(e.target.value)}>
+          <option value="today">Today only</option>
+          <option value="week">This week</option>
+          <option value="month">This month</option>
+          <option value="custom">Choose dates</option>
+        </Select>
+      </Field>
+
+      {preset === 'custom' && (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Starts">
+            <Input name="startsAt" type="date" />
+          </Field>
+          <Field label="Ends">
+            <Input name="endsAt" type="date" />
+          </Field>
+        </div>
+      )}
+
+      <label className="flex items-center gap-2 text-[14px]">
+        <input type="checkbox" name="weekendOnly" className="h-5 w-5" />
+        Weekends only
+      </label>
+
+      <Field label="Coupon code" hint="Optional">
+        <Input name="couponCode" maxLength={40} />
+      </Field>
+
+      <label className="flex items-center gap-2 text-[14px]">
+        <input type="checkbox" name="isPublished" defaultChecked className="h-5 w-5" />
+        Show this on my page now
+      </label>
+
+      <Button type="submit" disabled={pending} className="w-full">
+        {pending ? 'Creating…' : 'Create offer'}
+      </Button>
+    </form>
+  );
+}

@@ -1,0 +1,190 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { requireMerchant, describeAuthError } from '@/modules/auth/session-server';
+import {
+  createCatalogItem,
+  createOffer,
+  deleteCatalogItem,
+  deleteOffer,
+  replaceHours,
+  updateCatalogItem,
+  updateOffer,
+  updateProfile,
+} from '@/modules/merchants/content';
+import { publishTenant, unpublishTenant } from '@/modules/merchants/tenants';
+import { primarySlugFor } from '@/modules/merchants/slugs';
+import { parseMoneyToMinor } from '@/modules/core/money';
+
+export type FormState = { error?: string; success?: string };
+
+/**
+ * Every action re-derives the tenant from the session. Nothing here reads a
+ * tenant id from the submitted form.
+ */
+async function revalidateMerchant(tenantId: string): Promise<void> {
+  const slug = await primarySlugFor(tenantId);
+  revalidatePath('/app');
+  if (slug) revalidatePath(`/m/${slug}`);
+}
+
+function optional(value: FormDataEntryValue | null): string | null {
+  const text = String(value ?? '').trim();
+  return text === '' ? null : text;
+}
+
+export async function saveProfileAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('profile:write');
+    await updateProfile(tenantId, {
+      displayName: String(formData.get('displayName') ?? '').trim(),
+      tagline: optional(formData.get('tagline')),
+      description: optional(formData.get('description')),
+      phone: optional(formData.get('phone')),
+      whatsapp: optional(formData.get('whatsapp')),
+      email: optional(formData.get('email')),
+      websiteUrl: optional(formData.get('websiteUrl')),
+      addressLine1: optional(formData.get('addressLine1')),
+      addressLine2: optional(formData.get('addressLine2')),
+      city: optional(formData.get('city')),
+      state: optional(formData.get('state')),
+      pincode: optional(formData.get('pincode')),
+      googleMapsUrl: optional(formData.get('googleMapsUrl')),
+      gbpReviewUrl: optional(formData.get('gbpReviewUrl')),
+      accentColor: optional(formData.get('accentColor')),
+    });
+    await revalidateMerchant(tenantId);
+    return { success: 'Saved. Your page is updated.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+}
+
+export async function saveHoursAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('hours:write');
+    const rows = [];
+    for (let day = 0; day < 7; day++) {
+      const closed = formData.get(`closed_${day}`) === 'on';
+      const opensAt = String(formData.get(`opens_${day}`) ?? '');
+      const closesAt = String(formData.get(`closes_${day}`) ?? '');
+      if (closed || !opensAt || !closesAt) {
+        rows.push({ dayOfWeek: day, opensAt: null, closesAt: null, isClosed: true });
+      } else {
+        rows.push({ dayOfWeek: day, opensAt, closesAt, isClosed: false });
+      }
+    }
+    await replaceHours(tenantId, rows);
+    await revalidateMerchant(tenantId);
+    return { success: 'Opening hours saved.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+}
+
+export async function createCatalogItemAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('catalog:write');
+    const priceText = String(formData.get('price') ?? '');
+    const maxPriceText = String(formData.get('priceMax') ?? '');
+    const duration = String(formData.get('durationMinutes') ?? '');
+    const minQty = String(formData.get('minOrderQty') ?? '');
+    const kind = formData.get('kind') === 'product' ? 'product' : 'service';
+
+    await createCatalogItem(tenantId, {
+      kind,
+      name: String(formData.get('name') ?? '').trim(),
+      description: optional(formData.get('description')),
+      priceMinor: priceText ? parseMoneyToMinor(priceText) : null,
+      priceMaxMinor: maxPriceText ? parseMoneyToMinor(maxPriceText) : null,
+      priceUnit: optional(formData.get('priceUnit')),
+      durationMinutes: kind === 'service' && duration ? Number(duration) : null,
+      minOrderQty: minQty ? Number(minQty) : null,
+    });
+    await revalidateMerchant(tenantId);
+    return { success: 'Added to your page.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+}
+
+export async function toggleCatalogItemAction(itemId: string, isAvailable: boolean): Promise<void> {
+  const { tenantId } = await requireMerchant('catalog:toggle');
+  await updateCatalogItem(tenantId, itemId, { isAvailable });
+  await revalidateMerchant(tenantId);
+}
+
+export async function deleteCatalogItemAction(itemId: string): Promise<void> {
+  const { tenantId } = await requireMerchant('catalog:write');
+  await deleteCatalogItem(tenantId, itemId);
+  await revalidateMerchant(tenantId);
+}
+
+export async function createOfferAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('offers:write');
+    const preset = String(formData.get('preset') ?? 'custom');
+    const now = new Date();
+
+    let startsAt: Date | null = null;
+    let endsAt: Date | null = null;
+    if (preset === 'today') {
+      startsAt = now;
+      endsAt = new Date(now.getTime() + 86_400_000);
+    } else if (preset === 'week') {
+      startsAt = now;
+      endsAt = new Date(now.getTime() + 7 * 86_400_000);
+    } else if (preset === 'month') {
+      startsAt = now;
+      endsAt = new Date(now.getTime() + 30 * 86_400_000);
+    } else {
+      const from = String(formData.get('startsAt') ?? '');
+      const to = String(formData.get('endsAt') ?? '');
+      startsAt = from ? new Date(from) : null;
+      endsAt = to ? new Date(to) : null;
+    }
+
+    const weekendOnly = formData.get('weekendOnly') === 'on';
+
+    await createOffer(tenantId, {
+      title: String(formData.get('title') ?? '').trim(),
+      description: optional(formData.get('description')),
+      terms: optional(formData.get('terms')),
+      couponCode: optional(formData.get('couponCode')),
+      discountType: 'custom',
+      startsAt,
+      endsAt,
+      activeWeekdays: weekendOnly ? [0, 6] : null,
+      isPublished: formData.get('isPublished') === 'on',
+      ctaType: 'call',
+    });
+    await revalidateMerchant(tenantId);
+    return { success: 'Offer created.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+}
+
+export async function toggleOfferAction(offerId: string, isPublished: boolean): Promise<void> {
+  const { tenantId } = await requireMerchant('offers:write');
+  await updateOffer(tenantId, offerId, { isPublished });
+  await revalidateMerchant(tenantId);
+}
+
+export async function deleteOfferAction(offerId: string): Promise<void> {
+  const { tenantId } = await requireMerchant('offers:write');
+  await deleteOffer(tenantId, offerId);
+  await revalidateMerchant(tenantId);
+}
+
+export async function publishAction(): Promise<void> {
+  const { tenantId, session } = await requireMerchant('profile:write');
+  await publishTenant(tenantId, session.userId);
+  await revalidateMerchant(tenantId);
+}
+
+export async function unpublishAction(): Promise<void> {
+  const { tenantId, session } = await requireMerchant('profile:write');
+  await unpublishTenant(tenantId, session.userId);
+  await revalidateMerchant(tenantId);
+}
