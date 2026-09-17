@@ -136,5 +136,15 @@ CREATE POLICY system_rw ON outbox FOR ALL TO mdp_system USING (true) WITH CHECK 
 REVOKE ALL ON outbox FROM mdp_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON outbox TO mdp_system;
 
+/* -------------------------------------------------------------------------- */
+/* rate_limit_buckets - protects accounts and SMS spend, system only           */
+/* -------------------------------------------------------------------------- */
+ALTER TABLE rate_limit_buckets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rate_limit_buckets FORCE  ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS system_rw ON rate_limit_buckets;
+CREATE POLICY system_rw ON rate_limit_buckets FOR ALL TO mdp_system USING (true) WITH CHECK (true);
+REVOKE ALL ON rate_limit_buckets FROM mdp_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON rate_limit_buckets TO mdp_system;
+
 -- Sequences / schema usage
 GRANT USAGE ON SCHEMA public TO mdp_app, mdp_system;

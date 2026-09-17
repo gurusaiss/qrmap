@@ -717,3 +717,21 @@ export const outbox = pgTable(
   },
   (t) => [index('outbox_pending_idx').on(t.runAfter).where(sql`${t.completedAt} IS NULL`)],
 );
+
+/**
+ * Durable rate-limit buckets (see auth/durable-rate-limit.ts). One row per
+ * (key, fixed window). System-scoped, not tenant-owned — this protects
+ * accounts and SMS spend, which are platform concerns, not merchant data.
+ */
+export const rateLimitBuckets = pgTable(
+  'rate_limit_buckets',
+  {
+    bucketKey: text('bucket_key').notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+    hits: integer('hits').notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.bucketKey, t.windowStart] }),
+    index('rate_limit_buckets_window_idx').on(t.windowStart),
+  ],
+);

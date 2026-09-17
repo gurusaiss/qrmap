@@ -17,6 +17,7 @@ export type AuditAction =
   | 'plan.change'
   | 'admin.impersonate.start' | 'admin.impersonate.end'
   | 'security.client_tenant_id_ignored'
+  | 'security.totp_rejected'
   | 'ai.config_change';
 
 export type AuditEntry = {

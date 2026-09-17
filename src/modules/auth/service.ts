@@ -22,8 +22,11 @@ import {
   verifyPassword,
 } from './crypto';
 import { LIMITS, RateLimitError, enforce, maybeSweep } from './rate-limit';
+import { DURABLE_LIMITS, enforceDurable } from './durable-rate-limit';
 import type { MerchantRole, Principal, PlatformRole } from './rbac';
 import { sendSms } from '../notify/sms';
+import { generateTotpSecret, totpProvisioningUri, verifyTotp } from './totp';
+import { recordAuditSafe } from '../core/audit';
 
 const SESSION_TTL_DAYS = 90;
 const OTP_TTL_MINUTES = 10;
@@ -55,7 +58,7 @@ export async function requestOtp(rawPhone: string, ip: string): Promise<{ sent: 
   if (!phone) throw new AuthError('Enter a valid mobile number.');
 
   enforce(`otp:ip:${ip}`, LIMITS.otpRequestPerIp);
-  enforce(`otp:phone:${phone}`, LIMITS.otpRequestPerPhone);
+  await enforceDurable(`otp:phone:${phone}`, DURABLE_LIMITS.otpRequestPerPhone);
 
   // Durable check as well: OTP sends cost real money, so the limit must
   // survive a process restart.
@@ -88,7 +91,7 @@ export async function verifyOtp(
 ): Promise<{ token: string; userId: string }> {
   const phone = normalisePhone(rawPhone);
   if (!phone) throw new AuthError('Enter a valid mobile number.');
-  enforce(`otpv:${phone}`, LIMITS.otpVerifyPerPhone);
+  await enforceDurable(`otpv:${phone}`, DURABLE_LIMITS.otpVerifyPerPhone);
 
   return withSystem(async ({ tx }) => {
     const [record] = await tx
@@ -132,12 +135,25 @@ export async function verifyOtp(
 /* Password login (platform admins and merchants who prefer it)                */
 /* -------------------------------------------------------------------------- */
 
+export type PasswordLoginResult =
+  | { step: 'done'; token: string; userId: string }
+  | { step: 'totp_setup'; userId: string; secret: string; otpauthUri: string }
+  | { step: 'totp_required'; userId: string };
+
+/**
+ * Password step only. Platform admins carry mandatory TOTP 2FA (docs/03
+ * §C4), so a platform admin never gets a session from this call alone — it
+ * either asks for a code (`totp_required`) or, on the very first login,
+ * provisions a secret and asks the admin to enrol an authenticator app
+ * (`totp_setup`). Merchants who use password login (rather than phone-OTP)
+ * are not required to have 2FA and get a session immediately.
+ */
 export async function loginWithPassword(
   email: string,
   password: string,
   context: { ip: string; userAgent: string },
-): Promise<{ token: string; userId: string }> {
-  enforce(`login:ip:${context.ip}`, LIMITS.loginPerIp);
+): Promise<PasswordLoginResult> {
+  await enforceDurable(`login:ip:${context.ip}`, DURABLE_LIMITS.loginPerIp);
 
   return withSystem(async ({ tx }) => {
     const [user] = await tx
@@ -154,9 +170,66 @@ export async function loginWithPassword(
     if (!user || !user.passwordHash || !ok) throw new AuthError('Email or password is incorrect.');
     if (user.status !== 'active') throw new AuthError('This account is disabled.');
 
+    const [admin] = await tx
+      .select()
+      .from(schema.platformAdmins)
+      .where(eq(schema.platformAdmins.userId, user.id))
+      .limit(1);
+
+    if (admin) {
+      if (!user.totpSecret) {
+        const secret = generateTotpSecret();
+        await tx.update(schema.users).set({ totpSecret: secret }).where(eq(schema.users.id, user.id));
+        return {
+          step: 'totp_setup',
+          userId: user.id,
+          secret,
+          otpauthUri: totpProvisioningUri(secret, email.trim().toLowerCase()),
+        };
+      }
+      return { step: 'totp_required', userId: user.id };
+    }
+
     const token = await createSession(tx, user.id, context);
     await tx.update(schema.users).set({ lastLoginAt: new Date() }).where(eq(schema.users.id, user.id));
-    return { token, userId: user.id };
+    return { step: 'done', token, userId: user.id };
+  });
+}
+
+/**
+ * Second step for platform admins: verify the 6-digit code and only then
+ * create a session. Used identically for first-time enrolment and every
+ * login after it — once a secret is stored, checking a code is checking a
+ * code either way.
+ */
+export async function completeTotpLogin(
+  userId: string,
+  code: string,
+  context: { ip: string; userAgent: string },
+): Promise<{ token: string; userId: string }> {
+  await enforceDurable(`totp:${userId}`, DURABLE_LIMITS.totpPerUser);
+
+  return withSystem(async ({ tx }) => {
+    const [admin] = await tx
+      .select()
+      .from(schema.platformAdmins)
+      .where(eq(schema.platformAdmins.userId, userId))
+      .limit(1);
+    const [user] = await tx.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+
+    if (!admin || !user?.totpSecret || !verifyTotp(user.totpSecret, code)) {
+      await recordAuditSafe({
+        action: 'security.totp_rejected',
+        actorUserId: userId,
+        actorType: 'platform',
+        entityType: 'totp_attempt',
+      });
+      throw new AuthError('That code is not correct.');
+    }
+
+    const token = await createSession(tx, userId, context);
+    await tx.update(schema.users).set({ lastLoginAt: new Date() }).where(eq(schema.users.id, userId));
+    return { token, userId };
   });
 }
 

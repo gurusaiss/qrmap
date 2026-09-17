@@ -16,8 +16,18 @@ export function CatalogForm() {
   const [state, action, pending] = useActionState(createCatalogItemAction, initial);
   const [kind, setKind] = useState<'service' | 'product'>('service');
 
+  // Remounting the form clears its uncontrolled inputs after a successful
+  // add. Adjusting state during render (rather than in an effect) is the
+  // React-documented pure way to do this: https://react.dev/learn/you-might-not-need-an-effect
+  const [prevState, setPrevState] = useState(state);
+  const [resetKey, setResetKey] = useState(0);
+  if (state !== prevState) {
+    setPrevState(state);
+    if (state.success) setResetKey((k) => k + 1);
+  }
+
   return (
-    <form action={action} key={state.success ? Math.random() : 'form'} className="card space-y-3 p-4">
+    <form action={action} key={resetKey} className="card space-y-3 p-4">
       <ErrorText>{state.error}</ErrorText>
       <SuccessText>{state.success}</SuccessText>
 

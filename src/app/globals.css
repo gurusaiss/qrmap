@@ -37,6 +37,27 @@
   /* Overridden per merchant, within a contrast-checked range. */
   --accent: var(--color-brand-600);
   --accent-contrast: #ffffff;
+  --bg: var(--color-ink-50);
+  --surface: #ffffff;
+  --border: var(--color-ink-200);
+  --text: var(--color-ink-900);
+}
+
+/*
+ * Dark mode for the DASHBOARD AND ADMIN ONLY (this stylesheet is never loaded
+ * by the public merchant page - that page is a hand-rendered Route Handler
+ * with its own inline styles, deliberately light-only per docs/07-UX-SPEC.md
+ * §5: a predictable print/screen match matters more there than a preference).
+ * A merchant checking their dashboard at night gets a dark UI; a customer's
+ * printed QR always opens the same, predictable page.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0d10;
+    --surface: #16191f;
+    --border: #262b33;
+    --text: #edeff2;
+  }
 }
 
 html {
@@ -44,8 +65,8 @@ html {
 }
 
 body {
-  background: var(--color-ink-50);
-  color: var(--color-ink-900);
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-sans);
   /* 16px minimum on the public page: never 14. */
   font-size: 16px;
@@ -78,8 +99,8 @@ body {
 }
 
 .card {
-  background: #fff;
-  border: 1px solid var(--color-ink-200);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
 }
 

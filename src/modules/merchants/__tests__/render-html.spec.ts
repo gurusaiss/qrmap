@@ -1,5 +1,13 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { esc, renderMerchantPageHtml, renderNotFoundHtml, renderStatusPageHtml } from '../render-html';
+import {
+  INLINE_SCRIPT,
+  INLINE_SCRIPT_CSP_HASH,
+  esc,
+  renderMerchantPageHtml,
+  renderNotFoundHtml,
+  renderStatusPageHtml,
+} from '../render-html';
 import type { PublicPageData } from '../public-page';
 
 function baseData(overrides: Partial<PublicPageData> = {}): PublicPageData {
@@ -182,6 +190,44 @@ describe('renderMerchantPageHtml — content', () => {
     const html = renderMerchantPageHtml(baseData(), 'https://example.com');
     const scriptTags = html.match(/<script(?![^>]*type="application\/ld\+json")[^>]*>/g) ?? [];
     expect(scriptTags.length).toBe(1);
+  });
+
+  it('carries the tenant id and slug as data attributes, not baked into the script text', () => {
+    // The script text must be IDENTICAL across every merchant's page so it
+    // can be allow-listed in CSP by a single fixed hash. Per-page values
+    // belong in data-* attributes, read at runtime, never interpolated.
+    const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+    expect(html).toContain('data-tenant-id="11111111-1111-4111-8111-111111111111"');
+    expect(html).toContain('data-slug="sharma-hair-salon"');
+
+    const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);
+    expect(scriptMatch?.[1]).toBe(INLINE_SCRIPT);
+    expect(scriptMatch?.[1]).not.toContain('sharma-hair-salon');
+    expect(scriptMatch?.[1]).not.toContain('11111111-1111-4111-8111-111111111111');
+  });
+
+  it('the served inline script is byte-identical across two different merchants', () => {
+    const htmlA = renderMerchantPageHtml(baseData(), 'https://example.com');
+    const htmlB = renderMerchantPageHtml(
+      baseData({ tenantId: '22222222-2222-4222-8222-222222222222', slug: 'a-totally-different-shop' }),
+      'https://example.com',
+    );
+    const scriptOf = (html: string) => html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/)?.[1];
+    expect(scriptOf(htmlA)).toBe(scriptOf(htmlB));
+  });
+});
+
+describe('CSP hash', () => {
+  it('INLINE_SCRIPT_CSP_HASH is the real SHA-256 hash of the exact script served', () => {
+    const expected = `'sha256-${createHash('sha256').update(INLINE_SCRIPT).digest('base64')}'`;
+    expect(INLINE_SCRIPT_CSP_HASH).toBe(expected);
+  });
+
+  it('the hash exported for use in CSP headers matches what is actually embedded in the page', () => {
+    const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+    const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);
+    const actualHash = `'sha256-${createHash('sha256').update(scriptMatch?.[1] ?? '').digest('base64')}'`;
+    expect(actualHash).toBe(INLINE_SCRIPT_CSP_HASH);
   });
 });
 

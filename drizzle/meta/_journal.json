@@ -8,6 +8,13 @@
       "when": 1789583664314,
       "tag": "0000_sloppy_maginty",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789652749344,
+      "tag": "0001_late_legion",
+      "breakpoints": true
     }
   ]
 }

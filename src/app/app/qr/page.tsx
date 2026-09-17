@@ -27,7 +27,6 @@ export default async function QrPage() {
       <PageHeader title="Your QR code" description="Print this once. It will keep working, even years from now." />
 
       <Card className="flex flex-col items-center gap-4 p-6 text-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={`/api/qr/${slug}.png?size=600`}
           alt={`QR code linking to ${url}`}

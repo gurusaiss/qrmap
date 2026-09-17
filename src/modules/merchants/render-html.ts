@@ -22,6 +22,7 @@
  * text goes through `esc()`. This is the one thing that must never be
  * skipped when extending this file.
  */
+import { createHash } from 'node:crypto';
 import type { PublicPageData } from './public-page';
 import { formatPriceRange } from '../core/money';
 
@@ -87,13 +88,21 @@ function localBusinessJsonLd(data: PublicPageData, origin: string): string {
  * analytics beacon, delegated CTA click tracking, and the ask-assistant
  * widget. No framework, no build step, no hydration - this is the whole
  * JavaScript payload for the page besides this snippet's own bytes.
+ *
+ * This string is a CONSTANT — identical on every merchant's page. That is
+ * deliberate: per-page data (tenant id, slug) is read at runtime from a
+ * `data-*` attribute instead of being interpolated into the script text,
+ * specifically so this script can be allow-listed in CSP by its SHA-256 hash
+ * rather than needing `'unsafe-inline'`. See `INLINE_SCRIPT_CSP_HASH` below.
  */
-function inlineScript(tenantId: string, slug: string): string {
-  return `(function(){
+export const INLINE_SCRIPT = `(function(){
 "use strict";
+var root=document.getElementById('mp-root');
+var tenantId=root?root.getAttribute('data-tenant-id'):'';
+var slug=root?root.getAttribute('data-slug'):'';
 function send(eventType,extra){
   try{
-    var body=JSON.stringify(Object.assign({tenantId:${JSON.stringify(tenantId)},eventType:eventType,referrer:document.referrer||null,qr:/[?&]qr=1(&|$)/.test(location.search)},extra||{}));
+    var body=JSON.stringify(Object.assign({tenantId:tenantId,eventType:eventType,referrer:document.referrer||null,qr:/[?&]qr=1(&|$)/.test(location.search)},extra||{}));
     if(navigator.sendBeacon){navigator.sendBeacon('/api/e',new Blob([body],{type:'application/json'}));}
     else{fetch('/api/e',{method:'POST',body:body,keepalive:true});}
   }catch(e){}
@@ -115,7 +124,7 @@ if(form){
     if(!q)return;
     button.disabled=true;button.textContent='Asking…';
     answerBox.hidden=true;
-    fetch('/api/ai/'+${JSON.stringify(slug)}+'/ask',{
+    fetch('/api/ai/'+encodeURIComponent(slug)+'/ask',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})
     }).then(function(r){return r.json().then(function(j){return {ok:r.ok,json:j};});}).then(function(res){
       answerBox.textContent=res.json.answer||res.json.error||'Sorry, that did not work.';
@@ -129,7 +138,14 @@ if(form){
   });
 }
 })();`;
-}
+
+/**
+ * SHA-256 hash of the constant script above, in the `'sha256-...'` form CSP's
+ * `script-src` expects. Computed once at module load. If `INLINE_SCRIPT` ever
+ * changes, this changes with it automatically — there is nothing to keep in
+ * sync by hand.
+ */
+export const INLINE_SCRIPT_CSP_HASH = `'sha256-${createHash('sha256').update(INLINE_SCRIPT).digest('base64')}'`;
 
 const BASE_CSS = `
 :root{--accent:#1D4ED8;--ink-900:#0f1115;--ink-700:#2b2f38;--ink-500:#565d6b;--ink-400:#7b8290;--ink-200:#d9dde4;--ink-100:#eef1f5;--ink-50:#f7f9fb;--success:#15803d}
@@ -233,7 +249,7 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string): st
 <script type="application/ld+json">${localBusinessJsonLd(data, origin)}</script>
 </head>
 <body>
-<main style="--accent:${accent}">
+<main id="mp-root" data-tenant-id="${attr(data.tenantId)}" data-slug="${attr(data.slug)}" style="--accent:${accent}">
   <header>
     <div class="hero" aria-hidden="true"></div>
     <div class="px">
@@ -361,7 +377,7 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string): st
     <p style="margin-top:0.5rem"><a href="/" style="text-decoration:underline">Get a page like this for your shop</a></p>
   </footer>
 </main>
-<script>${inlineScript(data.tenantId, data.slug)}</script>
+<script>${INLINE_SCRIPT}</script>
 </body>
 </html>`;
 }

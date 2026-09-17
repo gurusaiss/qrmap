@@ -3,6 +3,9 @@ import type { NextConfig } from 'next';
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Self-contained build output for the Dockerfile - no host-proprietary
+  // deploy target required (see docs/03-ARCHITECTURE.md §C9).
+  output: 'standalone',
   serverExternalPackages: ['postgres', 'sharp'],
   images: { formats: ['image/avif', 'image/webp'] },
   async headers() {

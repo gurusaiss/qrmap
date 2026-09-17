@@ -2,7 +2,7 @@ import { requireMerchant } from '@/modules/auth/session-server';
 import { listOffers } from '@/modules/merchants/content';
 import { getTenant } from '@/modules/merchants/tenants';
 import { offerStatus } from '@/modules/core/offers';
-import { PageHeader } from '@/components/ui';
+import { EmptyState, PageHeader } from '@/components/ui';
 import { OfferForm } from './offer-form';
 import { OfferRow } from './offer-row';
 
@@ -44,12 +44,11 @@ export default async function OffersPage() {
       <OfferForm />
 
       <div className="mt-6 space-y-3">
-        {active.length === 0 && (
-          <p className="text-[14px] text-ink-400">No offers yet. Create one above — festival pricing works well.</p>
+        {active.length === 0 ? (
+          <EmptyState title="No offers yet" body="Create one above — festival pricing works especially well." />
+        ) : (
+          active.map(({ offer, status }) => <OfferRow key={offer.id} offer={offer} status={status} />)
         )}
-        {active.map(({ offer, status }) => (
-          <OfferRow key={offer.id} offer={offer} status={status} />
-        ))}
       </div>
 
       {ended.length > 0 && (
