@@ -27,12 +27,13 @@ if a decision is reversed, add a new entry superseding the old one.
 | D20 | **Free page forever; monetise the layers above** | Charge for the QR page | No evidence anyone monetises *presence alone* in this market; the page is the acquisition engine and the moat | **Hypothesis — gated on P0-2** |
 | D21 | **Distribution elevated to a core deliverable** | Treat as post-launch marketing | Vyaparify/HDFC ships the same product with bank distribution; features cannot win this | Settled |
 | D22 | **Merchant creation admin/verification-gated in V1** | Open self-serve signup | Shared-domain abuse could get the whole domain flagged by Safe Browsing → every printed QR breaks simultaneously. Moderation is a permanence issue | Settled |
-| D23 | **System fonts, ≤30 KB JS, works without JS** on the public page | Webfonts; client-side rendering | The customer is on a low-end phone on a slow network; this is the product working or not | **Invariant** |
+| D23 | **System fonts, ≤30 KB JS, works without JS** on the public page | Webfonts; client-side rendering | The customer is on a low-end phone on a slow network; this is the product working or not | **Invariant — see D29 for how this is actually met** |
 | D24 | **i18n architected in V1, translations in V2** | Hardcode English; full i18n now | Retrofitting i18n is expensive and we will not do it twice; translating before product-market fit is waste | Settled |
 | D25 | **Dockerfile from day one** | Deploy-target-specific code | Every viable free host carries ToS/capacity risk; we must assume relocation | Settled |
 | D26 | **Monthly merchant report is V1 scope** | Post-launch nice-to-have | Merchants churn from invisible value; the report *is* the retention mechanism | Settled |
 | D27 | **Merchant `extra_instructions` treated as untrusted input** | Trust merchant config | A merchant could otherwise repurpose our rate-limited AI budget as a free public chatbot, or disable safety rules | Settled |
 | D28 | **Separate `platform_admins` table**, not a role value | Role enum in memberships | Makes "can a merchant escalate to platform admin?" answerable by inspection | Settled |
+| D29 | **Public merchant page served as a hand-rendered Route Handler, not a React page** (D2 stands for every other route) | Removing just the two client islands from the RSC page | Measured: a "pure server component" version still shipped ~174 KB gzipped, because Next.js App Router's client runtime attaches at the root layout and loads on every route regardless of that route's own client-component usage. Only removing the route from React's render tree entirely fixed it. **Measured after the fix: ~1.7 KB JS, ~3.9 KB total page weight gzipped** — see `docs/12-KNOWN-ISSUES.md` | Settled |
 
 ---
 

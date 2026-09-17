@@ -77,13 +77,42 @@ Django/Rails API + SPA, (e) Astro for public pages + separate dashboard app.
   the document.**
 - SvelteKit is lighter and faster but has a materially smaller hiring pool in India.
 - A separate API + SPA doubles deployment surface and loses SSR on the page that most needs it.
-**RECOMMENDATION: Next.js 15 (App Router) + TypeScript**, with the public page written as a
-**server component with effectively zero client JavaScript**.
-**REASON:** We capture most of Astro's performance benefit (RSC + streaming + ISR) inside one
-codebase that also serves the dashboard and API, satisfying constraints 3 and 6 simultaneously.
-Largest talent pool matters for a business that must eventually hire.
+**RECOMMENDATION: Next.js 15 (App Router) + TypeScript** for the dashboard, admin console and API —
+**with the public merchant page (`/m/{slug}`) served as a plain Route Handler that hand-renders
+HTML, not as a React page.**
+**REASON:** We keep one codebase and one talent pool for everything that benefits from React
+(the dashboard, the admin console), while the one route with a hard performance constraint pays
+none of the framework's cost. **This resolves the Astro-vs-Next.js tension above rather than
+inheriting it**: the public page gets Astro-grade output (near-zero JS) without a second codebase
+or a duplicated tenancy layer, because it is still one Next.js app — just one route within it that
+opts out of React entirely for its response.
+
+**Why "server component with effectively zero client JS" was not enough on its own:** an earlier
+build of this page did exactly that — zero client components beyond two small islands — and still
+shipped **~174 KB gzipped**. Inspecting the build manifest showed why: Next.js App Router attaches
+its client runtime (router, prefetching, RSC streaming protocol) at the **root layout**, so it
+loads on every route regardless of that route's own client-component usage. The fix had to remove
+the route from the React render tree entirely, not just remove its "use client" components.
+
+**Implementation:** `app/(public)/m/[slug]/route.ts` calls `loadPublicPage()` (unchanged — the data
+layer doesn't know or care how its output is rendered) and passes the result to
+`modules/merchants/render-html.ts`, which returns a complete HTML string: inline CSS (no stylesheet
+request), inline JSON-LD, and one inline `<script>` covering the analytics beacon, delegated CTA
+click tracking and the ask-assistant widget — plain DOM APIs, no framework. Because there is no
+React here, every interpolated value (business name, offer text, address, coupon codes — all
+merchant- or customer-influenced) is run through an explicit HTML escaper; this is tested
+adversarially (script-injection, attribute-breakout, JSON-LD-breakout attempts) rather than trusted
+by convention. `redirect()`/`notFound()` from `next/navigation` don't function the same way inside a
+Route Handler, so the alias-redirect and 404/410/suspended/coming-soon states are built as plain
+`Response` objects with explicit status codes instead — verified against a live database by actually
+renaming a merchant's slug and confirming the old address 308-redirects to the new one.
+
 **Guardrail:** a CI budget test fails the build if the public page ships more than **30 KB gzipped
-JS**. Without this guardrail the framework choice silently betrays constraint 3.
+JS**. **Measured result: ~1.7 KB** (the one inline script), with total page weight — HTML, CSS, JS
+and JSON-LD together — at **~3.9 KB gzipped**. Roughly 8x under budget on JS alone. The dashboard and
+admin console are unaffected and remain ordinary React with no such budget, because a merchant who
+has logged in has already chosen to be there — the budget exists for the customer standing in a
+shop on a slow connection, which is only ever this one route.
 
 ### C2. Database
 
@@ -328,21 +357,32 @@ permanent corporate liability:
 
 Constraint 3 is a release gate, not an aspiration.
 
-- **Rendering:** React Server Component, SSR with **ISR** (`revalidate` ~60 s) and on-demand
-  revalidation triggered by the merchant saving a change — so edits appear within seconds while
-  scans are served from cache.
-- **Caching layers:** CDN edge cache (stale-while-revalidate) → ISR cache → Postgres. The database
-  should be untouched by the overwhelming majority of scans.
-- **JavaScript budget: ≤ 30 KB gzipped**, enforced in CI. Interactivity (accordion, gallery,
-  chatbot) is progressively enhanced; **the page is fully functional with JavaScript disabled** —
-  call, WhatsApp and directions are plain anchors.
+- **Rendering:** **not a React page** — a Route Handler that hand-renders HTML directly (see §C1).
+  SSR is real (the tenant's current data is fetched per request) but there is no RSC/hydration
+  pipeline to pay for. "ISR" is approximated with `Cache-Control: public, s-maxage=60,
+  stale-while-revalidate=300` at the CDN, which is host-portable rather than tied to Next's own
+  revalidation mechanism — consistent with constraint 5.
+- **Caching layers:** CDN edge cache (stale-while-revalidate) → Postgres. The database should be
+  untouched by the overwhelming majority of scans once a CDN sits in front of this route.
+- **JavaScript budget: ≤ 30 KB gzipped**, enforced in CI. **Measured on the real production
+  build: ~1.7 KB** — one inline `<script>` covering the analytics beacon, CTA click tracking and
+  the ask-assistant widget, no framework runtime at all. Interactivity is plain DOM APIs;
+  **the page is fully functional with JavaScript disabled** — call, WhatsApp and directions are
+  plain anchors and the ask-assistant form degrades to doing nothing (not to an error) without JS.
 - **Images:** AVIF/WebP, correct `width`/`height` to prevent layout shift, `loading="lazy"` below
   the fold, LQIP blur placeholder, hero image preloaded.
 - **Fonts:** **system font stack.** No webfont on the public page. A webfont is 15–40 KB and a render
   delay for a merchant page that gains nothing from it.
 - **Targets (throttled 3G, mid-tier Android):** LCP < 2.0 s, CLS < 0.1, INP < 200 ms, total transfer
-  < 150 KB on first view.
+  < 150 KB on first view. **Measured total page weight (HTML+CSS+JS+JSON-LD), gzipped: ~3.9 KB** —
+  comfortably inside budget even before images are counted.
 - **Verification:** Lighthouse CI on every PR + a real low-end device test before each release.
+- **Security note specific to this approach:** because the page is a hand-built HTML string rather
+  than React-rendered, nothing escapes merchant- or customer-influenced text automatically. Every
+  interpolated value goes through an explicit escaper in `modules/merchants/render-html.ts`, tested
+  adversarially (script-injection, HTML-attribute-breakout and JSON-LD-breakout attempts) in
+  `modules/merchants/__tests__/render-html.spec.ts`. This is the one place in the codebase where
+  "the framework protects you by default" does not apply, and it is treated accordingly.
 
 ---
 

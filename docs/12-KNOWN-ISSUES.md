@@ -8,45 +8,74 @@ Issues list is part of the deliverable, not an afterthought.
 Everything below was verified against a real PostgreSQL 16 instance (not mocked), a
 real production Next.js build, and a running server — not just typechecked.
 
-- 126/126 automated tests pass, including 57 tenant-isolation tests and 27
-  adversarial AI-security tests, run against live Postgres with RLS enabled and forced.
+- 142/142 automated tests pass, including 57 tenant-isolation tests, 27
+  adversarial AI-security tests and 16 public-page HTML/XSS-escaping tests,
+  run against live Postgres with RLS enabled and forced.
 - `npm run build` succeeds; the app boots with `next start` and serves real traffic.
 - Manually verified end-to-end: public page renders real seeded data, QR PNG/SVG
   generate and decode-verify correctly, the `/q/{token}` permanent alias 308-redirects
-  to the canonical slug, the vCard route produces a valid card, the analytics
-  beacon accepts events, the AI endpoint answers deterministically with zero
-  model calls when a question matches a known pattern, and the OTP login flow
-  creates a real database row and logs a real code via the console SMS driver.
+  to the canonical slug, the vCard route produces a valid card and itself
+  redirects on a renamed slug, the analytics beacon accepts events, the AI
+  endpoint answers deterministically with zero model calls when a question
+  matches a known pattern, and the OTP login flow creates a real database row
+  and logs a real code via the console SMS driver.
 
-## Open gap: public-page JS budget
+## RESOLVED: public-page JS budget
 
-**Finding:** `03-ARCHITECTURE.md` §F sets a hard budget of ≤30 KB gzipped JS on
-the public page. Measured against the actual production build, the page ships
-**~174 KB gzipped** of framework runtime (React + Next.js App Router client
-runtime + RSC hydration plumbing), not the two small client components
-(`TrackView`, `AskAssistant`) themselves.
+**Original finding:** `03-ARCHITECTURE.md` §F sets a hard budget of ≤30 KB
+gzipped JS on the public page. The first implementation, built as a React
+Server Component page, shipped **~174 KB gzipped** despite having only two
+small "use client" islands (`TrackView`, `AskAssistant`).
 
-**Why:** Next.js App Router ships a baseline client runtime even for a page
-that is otherwise pure React Server Components, because the two "use client"
-islands (analytics beacon, ask-assistant) pull in the hydration runtime for
-the whole route. This is a known characteristic of the framework, not a bug
-in this codebase — but it means the budget as originally written is not met
-by the current implementation.
+**Root cause, confirmed by inspecting the build manifest:** the cost was not
+those two components. Next.js App Router attaches its client runtime (router,
+prefetching, RSC streaming protocol) as `rootMainFiles` on the ROOT layout,
+so it loads on every route in the app regardless of that route's own
+client-component usage. Removing the two islands would not have removed this
+— option 1 from the original note ("reimplement as an inline script") was
+necessary but not sufficient on its own.
 
-**Options, not yet decided:**
-1. Remove the two client islands and reimplement them as a single inline
-   `<script>` tag with vanilla DOM APIs (no React) — would likely bring the
-   page close to the original budget, at the cost of losing JSX ergonomics
-   for those two small pieces.
-2. Revisit the Astro-vs-Next.js trade-off from `03-ARCHITECTURE.md` §C1,
-   which flagged this exact tension as "the closest call in the document."
-3. Relax the budget to a measured, honest number (e.g. ~180 KB gzipped,
-   cached and shared across every route after the first page load) and rely
-   on HTTP caching rather than a zero-JS ideal.
+**Fix implemented:** the public page (`app/(public)/m/[slug]/route.ts`) is no
+longer a React page. It is a plain Next.js Route Handler that returns a
+hand-built HTML string (`modules/merchants/render-html.ts`) with inline CSS
+and exactly one small inline `<script>` for the analytics beacon, delegated
+CTA-click tracking and the ask-assistant widget. A Route Handler's response
+is a raw `Response` — it never enters React's render/hydration pipeline, so
+none of the framework's client bundle is attached. The dashboard and admin
+console are unaffected and remain ordinary React, because they carry no such
+budget (a merchant who has logged in has already chosen to be there).
 
-**Recommendation:** option 1 first (cheap, keeps the framework), because the
-public page is the one place the budget is a release gate, not an aspiration.
-Not yet implemented — flagged here rather than silently claimed as met.
+**Measured result, on the real production build:**
+
+| | Before | After |
+|---|---|---|
+| Framework JS chunks referenced | 8 | **0** |
+| Gzipped JS | ~174 KB | **~1.7 KB** (the one inline script) |
+| Total page weight (HTML+CSS+JS+JSON-LD), gzipped | n/a (not measured whole) | **~3.9 KB** |
+
+This is roughly **8x under** the original 30 KB budget for JS alone, and the
+*entire page* transfers in under 4 KB gzipped.
+
+**What had to be handled by hand, now that React isn't escaping output:**
+`modules/merchants/render-html.ts` runs every interpolated value (business
+name, tagline, description, address, offer text, coupon codes) through an
+explicit `esc()` HTML-escaper, and JSON-LD is escaped separately so a
+`</script>` sequence in merchant-supplied text cannot break out of the block.
+Covered by 16 tests in `modules/merchants/__tests__/render-html.spec.ts`,
+including specific injection-attempt cases (`<script>`, `onerror=`, a
+JSON-LD-breakout attempt). `redirect()`/`notFound()` from `next/navigation`
+don't work inside a Route Handler the way they do in a page component, so the
+alias-redirect and 404/410 cases are handled with plain `Response.redirect()`
+and status codes instead — verified by actually renaming a merchant's slug
+against the live database and confirming the old address 308-redirects to
+the new one, for both the main page and the vCard route (the latter was
+initially missed and has since been fixed and verified).
+
+**Trade-off accepted:** ISR-style revalidation is now `Cache-Control:
+public, s-maxage=60, stale-while-revalidate=300` instead of Next's
+`revalidate` export, since Route Handlers don't get page-level ISR. This is
+arguably more portable anyway (works at any CDN, not just Next-aware hosts),
+consistent with the architecture's general bias against host lock-in.
 
 ## Architectural limitations, by design (not bugs)
 

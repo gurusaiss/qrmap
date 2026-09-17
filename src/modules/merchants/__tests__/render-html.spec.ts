@@ -1,0 +1,205 @@
+import { describe, expect, it } from 'vitest';
+import { esc, renderMerchantPageHtml, renderNotFoundHtml, renderStatusPageHtml } from '../render-html';
+import type { PublicPageData } from '../public-page';
+
+function baseData(overrides: Partial<PublicPageData> = {}): PublicPageData {
+  return {
+    tenantId: '11111111-1111-4111-8111-111111111111',
+    slug: 'sharma-hair-salon',
+    displayName: 'Sharma Hair Salon',
+    templateKey: 'services',
+    categoryName: 'Barber',
+    currency: 'INR',
+    timezone: 'Asia/Kolkata',
+    profile: {
+      tagline: 'Great haircuts',
+      description: null,
+      phone: '+919876543210',
+      whatsapp: '+919876543210',
+      email: null,
+      websiteUrl: null,
+      addressLine1: '12 Main Road',
+      addressLine2: null,
+      city: 'Hyderabad',
+      state: 'Telangana',
+      pincode: '500035',
+      googleMapsUrl: null,
+      gbpReviewUrl: null,
+      accentColor: '#1D4ED8',
+      socials: {},
+      logoMediaId: null,
+      coverMediaId: null,
+    },
+    openState: { open: true, closesAt: '9:00 pm', closingSoon: false },
+    week: [
+      { day: 'Monday', dayOfWeek: 1, windows: ['9:00 am – 9:00 pm'] },
+      { day: 'Sunday', dayOfWeek: 0, windows: [] },
+    ],
+    heroOffer: null,
+    offers: [],
+    services: [],
+    products: [],
+    gallery: [],
+    aiEnabled: false,
+    ...overrides,
+  };
+}
+
+describe('esc', () => {
+  it('escapes all five HTML-significant characters', () => {
+    expect(esc(`<script>alert("x")&'y'</script>`)).toBe(
+      '&lt;script&gt;alert(&quot;x&quot;)&amp;&#39;y&#39;&lt;/script&gt;',
+    );
+  });
+});
+
+describe('renderMerchantPageHtml — security', () => {
+  it('escapes a malicious business name rather than injecting it', () => {
+    const html = renderMerchantPageHtml(
+      baseData({ displayName: `<script>alert(1)</script>` }),
+      'https://example.com',
+    );
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+  });
+
+  it('escapes merchant-supplied description and offer text', () => {
+    const html = renderMerchantPageHtml(
+      baseData({
+        profile: { ...baseData().profile, description: `"><img src=x onerror=alert(1)>` },
+        heroOffer: {
+          id: 'o1',
+          title: `</h2><script>evil()</script>`,
+          description: null,
+          terms: null,
+          couponCode: null,
+          discountType: 'custom',
+          discountPercent: null,
+          discountValueMinor: null,
+          ctaType: 'none',
+          ctaValue: null,
+          mediaId: null,
+          status: 'active',
+          isFeatured: true,
+          validity: 'Ongoing offer',
+        },
+      }),
+      'https://example.com',
+    );
+    expect(html).not.toContain('<img src=x onerror=');
+    expect(html).not.toContain('<script>evil()</script>');
+  });
+
+  it('escapes values placed inside href attributes', () => {
+    const html = renderMerchantPageHtml(
+      baseData({ profile: { ...baseData().profile, websiteUrl: `https://x.com/"><script>evil()</script>` } }),
+      'https://example.com',
+    );
+    expect(html).not.toContain('<script>evil()</script>');
+  });
+
+  it('the JSON-LD block cannot be broken out of with an embedded </script>', () => {
+    const html = renderMerchantPageHtml(
+      baseData({ displayName: `Shop</script><script>alert(1)</script>` }),
+      'https://example.com',
+    );
+    const ldJsonBlock = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1] ?? '';
+    expect(ldJsonBlock).not.toContain('</script>');
+    expect(() => JSON.parse(ldJsonBlock)).not.toThrow();
+  });
+});
+
+describe('renderMerchantPageHtml — content', () => {
+  it('renders the business name, tagline and open state', () => {
+    const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+    expect(html).toContain('Sharma Hair Salon');
+    expect(html).toContain('Great haircuts');
+    expect(html).toContain('Open now');
+    expect(html).toContain('9:00 pm');
+  });
+
+  it('shows only ONE hero offer even when featured', () => {
+    const html = renderMerchantPageHtml(
+      baseData({
+        heroOffer: {
+          id: 'o1',
+          title: 'Festival Offer',
+          description: 'Big discount',
+          terms: null,
+          couponCode: 'FEST99',
+          discountType: 'custom',
+          discountPercent: null,
+          discountValueMinor: null,
+          ctaType: 'none',
+          ctaValue: null,
+          mediaId: null,
+          status: 'active',
+          isFeatured: true,
+          validity: 'Valid till 20 Sep',
+        },
+      }),
+      'https://example.com',
+    );
+    expect(html.match(/Current offer/g)?.length).toBe(1);
+    expect(html).toContain('FEST99');
+  });
+
+  it('renders call, whatsapp and directions as plain anchors requiring no JS', () => {
+    const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+    expect(html).toContain('href="tel:+919876543210"');
+    expect(html).toContain('https://wa.me/919876543210');
+    expect(html).toContain('google.com/maps/search');
+  });
+
+  it('omits empty sections rather than rendering an empty heading', () => {
+    const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+    expect(html).not.toContain('>Services<');
+    expect(html).not.toContain('>Products<');
+    expect(html).not.toContain('>More offers<');
+  });
+
+  it('includes the ask-assistant form only when AI is enabled for the tenant', () => {
+    const disabled = renderMerchantPageHtml(baseData({ aiEnabled: false }), 'https://example.com');
+    const enabled = renderMerchantPageHtml(baseData({ aiEnabled: true }), 'https://example.com');
+    expect(disabled).not.toContain('id="ask-form"');
+    expect(enabled).toContain('id="ask-form"');
+  });
+
+  it('renders opening hours for every day of the week', () => {
+    const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+    expect(html).toContain('Monday');
+    expect(html).toContain('Sunday');
+    expect(html).toContain('Closed');
+  });
+
+  it('includes a canonical link and OG tags for SEO', () => {
+    const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+    expect(html).toContain('rel="canonical" href="https://example.com/m/sharma-hair-salon"');
+    expect(html).toContain('property="og:title"');
+  });
+
+  it('contains no framework script tags — only the one inline script this file writes', () => {
+    const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+    const scriptTags = html.match(/<script(?![^>]*type="application\/ld\+json")[^>]*>/g) ?? [];
+    expect(scriptTags.length).toBe(1);
+  });
+});
+
+describe('status and not-found pages', () => {
+  it('renders a branded coming-soon page, never a blank one', () => {
+    const html = renderStatusPageHtml('coming_soon', 'New Shop');
+    expect(html).toContain('New Shop is setting up');
+    expect(html).toContain('noindex');
+  });
+
+  it('escapes the business name in status pages too', () => {
+    const html = renderStatusPageHtml('suspended', `<script>x</script>`);
+    expect(html).not.toContain('<script>x</script>');
+  });
+
+  it('renders a helpful not-found page with a way back home', () => {
+    const html = renderNotFoundHtml();
+    expect(html).toContain("couldn't find that business");
+    expect(html).toContain('href="/"');
+  });
+});
