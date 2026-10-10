@@ -7,6 +7,8 @@ export const dynamic = 'force-dynamic';
 const NAV = [
   { href: '/admin', label: 'Merchants' },
   { href: '/admin/merchants/new', label: 'New merchant' },
+  { href: '/admin/settings', label: 'Settings' },
+  { href: '/admin/audit', label: 'Audit log' },
 ];
 
 /** Desktop-first: this console is used at a desk, unlike the merchant dashboard. */

@@ -170,6 +170,60 @@ export function aiProvider(): AiProvider {
   return (registry[env().AI_PROVIDER] ?? registry.none!)();
 }
 
+/**
+ * Ordered fallback chain: the configured provider first, then any other
+ * provider that actually has credentials configured.
+ *
+ * Free tiers are rate-limited ORG-WIDE (Groq ~14,400 req/day; Gemini ~1,500),
+ * so the realistic failure here is not "the vendor is down", it is "we hit the
+ * daily cap at 4pm". Falling through to a second free provider keeps the
+ * assistant answering instead of going dark for the rest of the day.
+ *
+ * If every provider fails, the caller degrades to the deterministic answer
+ * path, which needs no provider at all — so a missing or exhausted API key is
+ * never a hard outage, just a narrower set of answerable questions.
+ */
+export function aiProviderChain(): AiProvider[] {
+  if (override) return [override];
+
+  const e = env();
+  const chain: AiProvider[] = [];
+  const seen = new Set<string>();
+
+  const add = (name: string): void => {
+    if (seen.has(name) || name === 'none') return;
+    const factory = registry[name];
+    if (!factory) return;
+    // Only include providers whose credentials are actually present, so a
+    // fallback attempt cannot waste a round trip on a guaranteed 401.
+    if (!hasCredentials(name)) return;
+    seen.add(name);
+    chain.push(factory());
+  };
+
+  add(e.AI_PROVIDER);
+  // Free-tier providers, in preference order, as automatic backstops.
+  for (const candidate of ['groq', 'cloudflare', 'gemini']) add(candidate);
+
+  return chain;
+}
+
+/** Whether a provider has everything it needs to be worth calling. */
+export function hasCredentials(name: string): boolean {
+  const e = env();
+  switch (name) {
+    case 'mock':
+      return true;
+    case 'groq':
+    case 'gemini':
+      return Boolean(e.AI_API_KEY);
+    case 'cloudflare':
+      return Boolean(e.AI_API_KEY && e.CLOUDFLARE_ACCOUNT_ID);
+    default:
+      return false;
+  }
+}
+
 export function aiEnabled(): boolean {
   return env().AI_PROVIDER !== 'none' || override !== null;
 }

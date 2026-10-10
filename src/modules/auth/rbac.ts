@@ -96,12 +96,20 @@ export function canForTenant(principal: Principal, action: Action, tenantId: str
   return can(principal, action);
 }
 
-/** A member may never grant a role at or above their own. */
+/**
+ * A member may never grant a role ABOVE their own — e.g. a manager could
+ * never grant "owner" even if `members:write` were ever extended to
+ * managers. Granting a role at the SAME level as the actor is allowed: today
+ * that only matters for owners, since `members:write` is owner-only
+ * (docs/04-DATABASE.md §1), and an owner must be able to add a co-owner —
+ * two business partners is a completely ordinary case. A strict "less than"
+ * here would silently block that, since owner is already the top rank.
+ */
 export function canAssignRole(actor: Principal, target: MerchantRole): boolean {
   if (actor.kind === 'platform') return can(actor, 'platform:tenant:update');
   if (actor.kind !== 'merchant') return false;
   if (!can(actor, 'members:write')) return false;
-  return ROLE_RANK[target] < ROLE_RANK[actor.role];
+  return ROLE_RANK[target] <= ROLE_RANK[actor.role];
 }
 
 export class AuthorizationError extends Error {

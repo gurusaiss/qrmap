@@ -3,6 +3,7 @@ import { primarySlugFor } from '@/modules/merchants/slugs';
 import { minimumPrintSizeMm, publicUrlForSlug } from '@/modules/qr';
 import { env } from '@/modules/core/env';
 import { ButtonLink, Card, PageHeader } from '@/components/ui';
+import { QrCustomizer } from './qr-customizer';
 
 export const metadata = { title: 'Your QR code' };
 
@@ -45,6 +46,10 @@ export default async function QrPage() {
           </ButtonLink>
         </div>
       </Card>
+
+      <div className="mt-4">
+        <QrCustomizer slug={slug} />
+      </div>
 
       <Card className="mt-4">
         <h2 className="font-semibold">This code never changes</h2>
