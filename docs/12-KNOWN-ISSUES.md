@@ -8,17 +8,28 @@ Issues list is part of the deliverable, not an afterthought.
 Everything below was verified against a real PostgreSQL 16 instance (not mocked), a
 real production Next.js build, and a running server — not just typechecked.
 
-- 142/142 automated tests pass, including 57 tenant-isolation tests, 27
-  adversarial AI-security tests and 16 public-page HTML/XSS-escaping tests,
-  run against live Postgres with RLS enabled and forced.
+- 183/183 automated tests pass, including 57 tenant-isolation tests, 27
+  adversarial AI-security tests, 20 public-page HTML/XSS-escaping tests, 9
+  TOTP tests, 8 durable-rate-limit tests (including a real concurrency race),
+  16 team-management/RBAC tests, and 4 QR-colour-preset contrast tests — run
+  against live Postgres with RLS enabled and forced.
 - `npm run build` succeeds; the app boots with `next start` and serves real traffic.
 - Manually verified end-to-end: public page renders real seeded data, QR PNG/SVG
-  generate and decode-verify correctly, the `/q/{token}` permanent alias 308-redirects
+  generate and decode-verify correctly (including every colour preset offered
+  in the dashboard), the `/q/{token}` permanent alias 308-redirects
   to the canonical slug, the vCard route produces a valid card and itself
   redirects on a renamed slug, the analytics beacon accepts events, the AI
   endpoint answers deterministically with zero model calls when a question
-  matches a known pattern, and the OTP login flow creates a real database row
-  and logs a real code via the console SMS driver.
+  matches a known pattern, the OTP login flow creates a real database row
+  and logs a real code via the console SMS driver, the nonce-based CSP's
+  nonce actually matches between a live response's header and its HTML, and
+  the TOTP QR endpoint rejects non-`otpauth://` input.
+- Two real bugs were caught by writing tests for new features, not just by
+  review, and are fixed: `canAssignRole` used strict `<`, which (since
+  `members:write` is owner-only) meant an owner could never add a co-owner;
+  and two of the four QR colour presets measured below the server's own 7:1
+  contrast bar, so picking them from the dropdown would have produced a
+  rejected download. See the git log for both.
 
 ## RESOLVED: public-page JS budget
 
@@ -77,15 +88,37 @@ public, s-maxage=60, stale-while-revalidate=300` instead of Next's
 arguably more portable anyway (works at any CDN, not just Next-aware hosts),
 consistent with the architecture's general bias against host lock-in.
 
+## RESOLVED since the previous pass
+
+- **Rate limiting is now durable (Postgres-backed) for every path that spends
+  money or protects an account** — OTP request/verify, login, TOTP attempts
+  (`auth/durable-rate-limit.ts`). Verified under real concurrent load (10
+  simultaneous requests against a limit of 5 let through exactly 5). The
+  cheap, high-volume analytics beacon intentionally stays in-process
+  (`auth/rate-limit.ts`) — a DB round trip there would be wasteful, and the
+  worst case is a temporarily looser limit, not a security or cost exposure.
+- **The maintenance worker is wired**: `npm run worker`
+  (`modules/db/worker.ts`) runs analytics rollup, raw-event pruning and
+  rate-limit bucket cleanup, meant for an hourly cron/systemd timer —
+  documented in `MANUAL-SETUP.md` §6.
+- **CI is wired**: `.github/workflows/ci.yml` runs typecheck, lint, the full
+  test suite against a real Postgres service container, a production build,
+  and a regression guard against the public page ever becoming a React page
+  again.
+- **The AI provider now has a real fallback chain**, not just a single
+  configured provider (`ai/provider.ts` `aiProviderChain`). Free tiers cap
+  out ORG-WIDE, not per-tenant, so the realistic failure is a daily quota, not
+  a vendor outage — the assistant tries every provider with credentials
+  configured before degrading to deterministic-only answers. Defaulted to
+  Groq in `.env.example` (genuinely free, no card, fastest of the three).
+- **Nine previously-dead RBAC permissions now have a UI**: team management
+  (`app/app/team`), plan/billing (read-only, `app/app/plan`), platform
+  categories/plans/feature-flags (`admin/settings`), and the audit log
+  (`admin/audit`). See the git log entry "Wire up every permission that had
+  no UI" for the full list and the two real bugs this surfaced.
+
 ## Architectural limitations, by design (not bugs)
 
-- **Rate limiting is in-process** (`auth/rate-limit.ts`). Correct for a single
-  instance; multiplies by instance count under horizontal scaling. Must move
-  to a shared store (Postgres table or Redis) before running more than one
-  app instance. Documented in the module's own header comment.
-- **The `outbox` job table exists but no worker process consumes it yet.**
-  Analytics rollup (`rollupDay`) and raw-event pruning (`pruneRawEvents`) are
-  implemented as callable functions but are not yet wired to a cron/scheduler.
 - **R2 storage driver is implemented but untested against a real R2 bucket**
   (no credentials in this environment). The local filesystem driver is fully
   exercised; the R2 SigV4 signing code has not been run against Cloudflare's
@@ -98,19 +131,27 @@ consistent with the architecture's general bias against host lock-in.
   and `none` providers are fully tested; the adversarial security suite runs
   against a spy provider that records what it was shown, which is what
   actually matters for the security property (verified: real requests never
-  place another tenant's data in the prompt).
+  place another tenant's data in the prompt). The fallback-chain *logic*
+  (which providers get tried, in what order, with credential gating) is
+  fully unit-testable and tested; only the live HTTP calls to each vendor
+  are unverified.
 - **No email delivery module.** The monthly merchant report's data queries
   (`analytics/index.ts` → `monthlyReport`) are implemented and tested; the
   delivery channel (WhatsApp/SMS/email) described in the architecture is not
   yet built.
-- **Platform admin UI has no automated tests.** The merchant-facing flows and
-  the isolation/security layers have test coverage; the admin console
-  (`src/app/admin/**`) was verified by manual click-through and typechecking
-  only.
-- **No CI pipeline file committed.** `08-V1-IMPLEMENTATION-PLAN.md` specifies
-  a blocking CI gate (typecheck, lint, tests, isolation suite, Lighthouse
-  budget); the checks all exist and pass locally but are not wired into a
-  `.github/workflows` file in this environment.
+- **No payment gateway.** The Plan & billing page (`app/app/plan`) is
+  deliberately read-only — it shows the current plan, limits and live usage,
+  but "upgrade" says to contact support rather than offering a button that
+  doesn't actually charge anyone. `subscriptions` table exists in the schema
+  for when this is built.
+- **Platform admin UI has partial automated test coverage.** The underlying
+  services for the newer admin screens (members, plan/usage queries) have
+  tests; the settings/audit/merchant-detail screens themselves were verified
+  by manual click-through, build success and typechecking, not component tests.
+- **No member self-service password change UI.** `setPassword()` exists and
+  is used for platform-admin bootstrapping; a merchant using password login
+  (rather than phone-OTP, which needs no password) has no dashboard screen to
+  change their own password yet.
 
 ## Explicitly out of scope for this pass (per the plan itself)
 

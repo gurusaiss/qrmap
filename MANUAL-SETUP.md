@@ -246,10 +246,18 @@ If you want the full assistant:
   use. Do not take my earlier research as the final word — check
   Google's/Groq's/Cloudflare's actual current ToS page before connecting a
   key.
-- [ ] Pick one: Gemini (`AI_PROVIDER=gemini`), Groq (`AI_PROVIDER=groq`), or
-  Cloudflare Workers AI (`AI_PROVIDER=cloudflare`, also needs
-  `CLOUDFLARE_ACCOUNT_ID`).
-- [ ] Get an API key from that provider's console and set `AI_API_KEY`.
+- [ ] **Groq is the default and recommended choice** (`AI_PROVIDER=groq`):
+  genuinely free tier, no card required, fastest of the three. Get a key at
+  https://console.groq.com and set `AI_API_KEY`.
+- [ ] **The app has a real fallback chain, not just one provider**
+  (`src/modules/ai/provider.ts` → `aiProviderChain`). If you also set
+  credentials for a second provider (e.g. add `CLOUDFLARE_ACCOUNT_ID` plus a
+  Cloudflare Workers AI key), the assistant automatically tries it if Groq's
+  free-tier daily cap is hit or a request fails — you don't need to change
+  `AI_PROVIDER` to benefit from this, it tries every provider that has
+  credentials configured, in order. If every provider fails or none is
+  configured, it falls back to deterministic answers, which need no key at
+  all — a missing or exhausted key narrows the answers, it never breaks the page.
 - [ ] Optionally set `AI_MODEL` to override the default model per provider
   (see `src/modules/ai/provider.ts` for the defaults).
 - [ ] **This was implemented against each provider's documented API but not
@@ -435,6 +443,10 @@ genuinely is not, and needs a human with a real browser**:
 - [ ] Merchant content moderation process decided (who reviews, how fast)
 - [ ] Manual CSP/browser check done on every screen (§15)
 - [ ] One real QR code printed and scanned on a real phone
+- [ ] Walk through the newer admin screens once: Settings (categories/plans/
+  flags), Audit log, and on the merchant side Team and Plan & billing —
+  everything is live-tested against the database but confirm they match your
+  actual category list and pricing before merchants see them
 
 Once every box is checked, you're production-live. Everything after this is
 in `docs/08-V1-IMPLEMENTATION-PLAN.md` Phase 7 (pilot launch, 25 real
