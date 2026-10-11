@@ -147,51 +147,63 @@ if(form){
  */
 export const INLINE_SCRIPT_CSP_HASH = `'sha256-${createHash('sha256').update(INLINE_SCRIPT).digest('base64')}'`;
 
+/*
+ * Same "Market Ledger" language as the dashboard (warm paper/ink, signage
+ * terracotta, a serif for headings) but hand-written and self-contained:
+ * this page has its own hard byte budget and never loads globals.css or
+ * next/font, so the serif here is a system stack (Georgia/ui-serif - zero
+ * network cost) rather than the dashboard's self-hosted Source Serif 4.
+ */
 const BASE_CSS = `
-:root{--accent:#1D4ED8;--ink-900:#0f1115;--ink-700:#2b2f38;--ink-500:#565d6b;--ink-400:#7b8290;--ink-200:#d9dde4;--ink-100:#eef1f5;--ink-50:#f7f9fb;--success:#15803d}
+:root{--accent:#c2491d;--ink-900:#241b15;--ink-700:#4a3c32;--ink-500:#7a6b5d;--ink-400:#9c8d7e;--ink-200:#e4d9c9;--ink-100:#f0e8db;--ink-50:#fbf6ec;--success:#1f7a4d;--paper:#fdfbf6}
 *{box-sizing:border-box}
-body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--ink-900);background:#fff;font-size:16px;line-height:1.5}
+body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--ink-900);background:var(--paper);font-size:16px;line-height:1.5}
 main{max-width:640px;margin:0 auto;padding-bottom:6rem}
-.hero{height:10rem;width:100%;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 13%,transparent),color-mix(in srgb,var(--accent) 4%,transparent))}
+.hero{height:10rem;width:100%;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 16%,var(--paper)),color-mix(in srgb,var(--accent) 4%,var(--paper)))}
 .px{padding-left:1rem;padding-right:1rem}
-h1{margin:1rem 0 0;font-size:22px;font-weight:700;letter-spacing:-0.01em;line-height:1.2}
+h1{margin:1rem 0 0;font-family:ui-serif,Georgia,"Times New Roman",serif;font-size:23px;font-weight:700;letter-spacing:-0.01em;line-height:1.2}
 .sub{margin:0.25rem 0 0;font-size:15px;color:var(--ink-500)}
 .open-row{display:flex;align-items:center;gap:0.5rem;margin:0.75rem 0 0;font-size:15px;font-weight:500}
-.dot{display:inline-block;width:10px;height:10px;border-radius:999px}
-.offer{margin:1rem;border-radius:14px;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);background:color-mix(in srgb,var(--accent) 5%,transparent);padding:1rem}
-.offer-tag{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;color:var(--accent)}
-.offer h2{margin:0.25rem 0 0;font-size:18px;font-weight:700}
-.actions{position:sticky;top:0;z-index:10;display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-top:1rem;padding:0.75rem 1rem;border-bottom:1px solid var(--ink-100);background:rgba(255,255,255,.95);backdrop-filter:blur(4px)}
-.btn{min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;font-size:13px;font-weight:600;text-decoration:none}
-.btn-primary{background:var(--accent);color:#fff}
-.btn-secondary{border:1px solid var(--ink-200);color:var(--ink-900)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:999px;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 18%,transparent)}
+.offer{margin:1rem;border-radius:14px;border:1px solid color-mix(in srgb,var(--accent) 28%,transparent);background:color-mix(in srgb,var(--accent) 6%,var(--paper));padding:1rem}
+.offer-tag{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;color:var(--accent)}
+.offer h2{margin:0.25rem 0 0;font-family:ui-serif,Georgia,serif;font-size:18px;font-weight:700}
+.actions{position:sticky;top:0;z-index:10;display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-top:1rem;padding:0.75rem 1rem;border-bottom:1px solid var(--ink-100);background:color-mix(in srgb,var(--paper) 95%,transparent);backdrop-filter:blur(4px)}
+.btn{min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;font-size:13px;font-weight:600;text-decoration:none;transition:transform .15s ease,box-shadow .15s ease,background-color .15s ease;-webkit-tap-highlight-color:transparent}
+.btn:active{transform:scale(0.96)}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(36,27,21,.18)}
+.btn-secondary{border:1px solid var(--ink-200);color:var(--ink-900);background:var(--paper)}
+@media(hover:hover){.btn-primary:hover{background:color-mix(in srgb,var(--accent) 88%,black)}.btn-secondary:hover{border-color:var(--ink-400)}}
 section.card-section{margin-top:1.5rem;padding:0 1rem}
-section.card-section h2{margin:0 0 0.75rem;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;color:var(--ink-400)}
-.card{border:1px solid var(--ink-200);border-radius:14px;background:#fff}
+section.card-section h2{margin:0 0 0.75rem;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;color:var(--ink-400)}
+.card{border:1px solid var(--ink-200);border-radius:14px;background:#fffdf9}
 .list li{list-style:none}
 .catalog-list{margin:0;padding:0}
-.catalog-list li{display:flex;justify-content:space-between;gap:1rem;padding:0.75rem;border-bottom:1px solid var(--ink-100)}
+.catalog-list li{display:flex;justify-content:space-between;gap:1rem;padding:0.75rem;border-bottom:1px solid var(--ink-100);transition:background-color .15s ease}
 .catalog-list li:last-child{border-bottom:none}
+@media(hover:hover){.catalog-list li:hover{background:var(--ink-50)}}
 .catalog-name{font-weight:500}
 .catalog-desc{margin:0.15rem 0 0;font-size:14px;color:var(--ink-500)}
 .catalog-meta{margin:0.15rem 0 0;font-size:13px;color:var(--ink-400)}
 .price{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
-.offers-more li{padding:0.75rem;border-radius:14px;border:1px solid var(--ink-200);margin-bottom:0.75rem}
+.offers-more li{padding:0.75rem;border-radius:14px;border:1px solid var(--ink-200);margin-bottom:0.75rem;background:#fffdf9}
 .hours-row{display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--ink-100);font-size:15px}
 .hours-row:last-child{border-bottom:none}
 .hours-today{color:var(--ink-700)}
 .hours-closed{color:var(--ink-400)}
 address{font-style:normal;font-size:15px;line-height:1.6;color:var(--ink-700)}
 .chips{display:flex;flex-wrap:wrap;gap:0.5rem}
-.ask-box{border:1px solid var(--ink-200);border-radius:14px;padding:0.75rem}
-.ask-box input{width:100%;min-height:48px;border:1px solid var(--ink-200);border-radius:10px;padding:0 0.75rem;font-size:16px}
-.ask-box button{width:100%;min-height:48px;margin-top:0.5rem;border:none;border-radius:10px;background:var(--ink-900);color:#fff;font-weight:600;font-size:15px}
+.ask-box{border:1px solid var(--ink-200);border-radius:14px;padding:0.75rem;background:#fffdf9}
+.ask-box input{width:100%;min-height:48px;border:1px solid var(--ink-200);border-radius:10px;padding:0 0.75rem;font-size:16px;background:var(--paper);transition:border-color .15s ease}
+.ask-box input:focus{outline:none;border-color:var(--accent)}
+.ask-box button{width:100%;min-height:48px;margin-top:0.5rem;border:none;border-radius:10px;background:var(--ink-900);color:#fff;font-weight:600;font-size:15px;transition:transform .15s ease}
+.ask-box button:active{transform:scale(0.98)}
 .ask-answer{margin-top:0.75rem;border-radius:10px;background:var(--ink-50);padding:0.75rem;font-size:15px;line-height:1.5}
 .ask-hint{margin-top:0.5rem;font-size:12px;color:var(--ink-400)}
 footer{margin-top:2.5rem;padding:0 1rem 2rem;text-align:center;font-size:13px;color:var(--ink-400)}
-footer a{color:inherit}
+footer a{color:inherit;text-decoration-color:var(--ink-200)}
 .status-page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 1.5rem}
-.status-page h1{font-size:20px;font-weight:700}
+.status-page h1{font-family:ui-serif,Georgia,serif;font-size:21px;font-weight:700}
 .status-page p{margin-top:0.75rem;font-size:15px;color:var(--ink-500);max-width:32rem}
 `;
 
@@ -218,7 +230,7 @@ function catalogListHtml(items: PublicPageData['services'], wholesale: boolean):
 }
 
 export function renderMerchantPageHtml(data: PublicPageData, origin: string): string {
-  const accent = data.profile.accentColor && /^#[0-9a-fA-F]{6}$/.test(data.profile.accentColor) ? data.profile.accentColor : '#1D4ED8';
+  const accent = data.profile.accentColor && /^#[0-9a-fA-F]{6}$/.test(data.profile.accentColor) ? data.profile.accentColor : '#c2491d';
   const directions = directionsHref(data);
   const description = esc(
     data.profile.tagline ??

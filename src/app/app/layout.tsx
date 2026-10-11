@@ -1,18 +1,9 @@
-import Link from 'next/link';
 import { requireMerchant } from '@/modules/auth/session-server';
 import { getTenant } from '@/modules/merchants/tenants';
 import { logoutAction } from '../login/actions';
+import { BottomNav } from './bottom-nav';
 
 export const dynamic = 'force-dynamic';
-
-const TABS = [
-  { href: '/app', label: 'Home' },
-  { href: '/app/catalog', label: 'Menu' },
-  { href: '/app/offers', label: 'Offers' },
-  { href: '/app/qr', label: 'QR' },
-  { href: '/app/insights', label: 'Insights' },
-  { href: '/app/more', label: 'More' },
-];
 
 /**
  * Mobile-first shell. The merchant will use a phone, not a laptop, so the
@@ -30,15 +21,25 @@ export default async function MerchantLayout({ children }: { children: React.Rea
         </div>
       )}
 
-      <header className="flex items-center justify-between border-b border-ink-100 bg-white px-4 py-3">
+      <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
         <div className="min-w-0">
-          <p className="truncate text-[15px] font-semibold">{tenant?.displayName ?? 'Your shop'}</p>
-          <p className="text-[13px] text-ink-400">
-            {tenant?.publishedAt ? 'Page is live' : 'Not published yet'}
+          <p className="truncate font-display text-[16px] font-semibold">{tenant?.displayName ?? 'Your shop'}</p>
+          <p className="flex items-center gap-1.5 text-[13px] text-ink-400">
+            {tenant?.publishedAt ? (
+              <>
+                <span className="pulse-dot h-1.5 w-1.5 shrink-0 rounded-full bg-success-600" aria-hidden="true" />
+                Page is live
+              </>
+            ) : (
+              'Not published yet'
+            )}
           </p>
         </div>
         <form action={logoutAction}>
-          <button type="submit" className="tap-target rounded-lg px-3 text-[14px] font-medium text-ink-500">
+          <button
+            type="submit"
+            className="tap-target rounded-[var(--radius-sm)] px-3 text-[14px] font-medium text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-700"
+          >
             Sign out
           </button>
         </form>
@@ -46,20 +47,7 @@ export default async function MerchantLayout({ children }: { children: React.Rea
 
       <main className="px-4 py-5">{children}</main>
 
-      <nav
-        aria-label="Sections"
-        className="fixed inset-x-0 bottom-0 mx-auto flex max-w-2xl border-t border-ink-200 bg-white"
-      >
-        {TABS.map((tab) => (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className="tap-target flex flex-1 flex-col items-center justify-center py-2 text-[13px] font-medium text-ink-700"
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
+      <BottomNav />
     </div>
   );
 }
