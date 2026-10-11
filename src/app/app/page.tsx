@@ -1,10 +1,11 @@
+import Link from 'next/link';
 import { requireMerchant } from '@/modules/auth/session-server';
 import { getTenant } from '@/modules/merchants/tenants';
 import { primarySlugFor } from '@/modules/merchants/slugs';
 import { listCatalog, listOffers } from '@/modules/merchants/content';
 import { summary } from '@/modules/analytics';
 import { env } from '@/modules/core/env';
-import { ButtonLink, Card, Stat } from '@/components/ui';
+import { ButtonLink, Card, IconChevronRight, Stat } from '@/components/ui';
 import { PublishControls } from './publish-controls';
 
 export const metadata = { title: 'Your shop' };
@@ -26,10 +27,16 @@ export default async function DashboardHome() {
   const pageUrl = slug ? `${env().PUBLIC_QR_ORIGIN}/m/${slug}` : null;
   const published = Boolean(tenant?.publishedAt);
 
-  const nudges: string[] = [];
-  if (catalog.length < 3) nudges.push('Add at least three items so customers can see what you offer.');
-  if (offers.filter((o) => o.isPublished).length === 0) nudges.push('Post an offer — pages with a live offer get more attention.');
-  if (!published) nudges.push('Publish your page so the QR code works.');
+  const nudges: { text: string; href: string }[] = [];
+  if (catalog.length < 3) {
+    nudges.push({ text: 'Add at least three items so customers can see what you offer.', href: '/app/catalog' });
+  }
+  if (offers.filter((o) => o.isPublished).length === 0) {
+    nudges.push({ text: 'Post an offer — pages with a live offer get more attention.', href: '/app/offers' });
+  }
+  if (!published) {
+    nudges.push({ text: 'Publish your page so the QR code works.', href: '/app/qr' });
+  }
 
   return (
     <div className="space-y-5">
@@ -70,8 +77,11 @@ export default async function DashboardHome() {
           <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-ink-400">Next steps</h2>
           <ul className="space-y-2">
             {nudges.map((nudge) => (
-              <li key={nudge} className="card p-3 text-[15px]">
-                {nudge}
+              <li key={nudge.text}>
+                <Link href={nudge.href} className="card card-interactive flex items-center gap-3 p-3 text-[15px]">
+                  <span className="min-w-0 flex-1">{nudge.text}</span>
+                  <IconChevronRight className="h-4 w-4 shrink-0 text-ink-400" />
+                </Link>
               </li>
             ))}
           </ul>
