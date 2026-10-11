@@ -150,7 +150,7 @@ async function seedDemoMerchants(adminId: string): Promise<void> {
         city: 'Hyderabad',
         state: 'Telangana',
         pincode: '500035',
-        accentColor: '#1D4ED8',
+        accentColor: '#c2491d',
       })
       .where(eq(schema.businessProfiles.tenantId, barber.tenantId));
 

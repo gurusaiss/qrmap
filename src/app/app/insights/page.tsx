@@ -1,6 +1,6 @@
 import { requireMerchant } from '@/modules/auth/session-server';
 import { scanHeatmap, summary, topOffers, topQuestions } from '@/modules/analytics';
-import { Card, PageHeader, Stat } from '@/components/ui';
+import { Badge, Card, PageHeader, Stat } from '@/components/ui';
 
 export const metadata = { title: 'Insights' };
 
@@ -62,8 +62,9 @@ export default async function InsightsPage() {
         </h2>
         <Card>
           {busiestDay && busiestDay.count > 0 ? (
-            <p className="text-[15px]">
-              Busiest day: <strong>{DAY_NAMES[busiestDay.weekday]}</strong>
+            <p className="flex items-center gap-2 text-[15px]">
+              Busiest day
+              <Badge tone="info">{DAY_NAMES[busiestDay.weekday]}</Badge>
             </p>
           ) : (
             <p className="text-[14px] text-ink-400">Not enough activity yet to show a pattern.</p>

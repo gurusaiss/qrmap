@@ -17,7 +17,7 @@ export default async function SettingsPage() {
       <PageHeader title="Platform settings" description="Categories, plans and feature flags — shared across every merchant." />
 
       <section>
-        <h2 className="mb-3 text-[15px] font-semibold">Categories</h2>
+        <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-ink-400">Categories</h2>
         <p className="mb-3 text-[13px] text-ink-500">
           AI is off by default for high-liability verticals (medical) — see docs/06-AI-ARCHITECTURE.md §5.3.
         </p>
@@ -41,7 +41,7 @@ export default async function SettingsPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-[15px] font-semibold">Plans</h2>
+        <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-ink-400">Plans</h2>
         <p className="mb-3 text-[13px] text-ink-500">
           Limits are enforced in application code, so a pricing experiment is a data change here, not a deploy.
         </p>
@@ -53,7 +53,7 @@ export default async function SettingsPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-[15px] font-semibold">Feature flags</h2>
+        <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-ink-400">Feature flags</h2>
         <Card className="overflow-hidden p-0">
           <table className="w-full text-left text-[14px]">
             <tbody>

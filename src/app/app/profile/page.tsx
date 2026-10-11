@@ -31,7 +31,7 @@ export default async function ProfilePage() {
           pincode: profile?.pincode ?? '',
           googleMapsUrl: profile?.googleMapsUrl ?? '',
           gbpReviewUrl: profile?.gbpReviewUrl ?? '',
-          accentColor: profile?.accentColor ?? '#1D4ED8',
+          accentColor: profile?.accentColor ?? '#c2491d',
         }}
       />
     </div>

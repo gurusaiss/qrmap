@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requirePlatform } from '@/modules/auth/session-server';
 import { listTenants, platformStats } from '@/modules/merchants/tenants';
-import { Badge, ButtonLink, Card, PageHeader, Stat } from '@/components/ui';
+import { Badge, ButtonLink, Card, Input, PageHeader, Stat } from '@/components/ui';
 
 export const metadata = { title: 'Merchants' };
 
@@ -37,12 +37,7 @@ export default async function AdminHome({
 
       <div className="mb-4 flex items-center justify-between gap-3">
         <form className="flex-1">
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="Search by name or address…"
-            className="tap-target w-full max-w-sm rounded-lg border border-ink-200 px-3 text-[15px]"
-          />
+          <Input name="q" defaultValue={q} placeholder="Search by name or address…" className="max-w-sm" />
         </form>
         <ButtonLink href="/admin/merchants/new">New merchant</ButtonLink>
       </div>

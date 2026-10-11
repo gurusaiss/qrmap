@@ -1,7 +1,7 @@
 import { requireMerchant } from '@/modules/auth/session-server';
 import { getCurrentPlan, getFreePlan, getUsage, listPublicPlans } from '@/modules/merchants/plan';
 import { formatMoney } from '@/modules/core/money';
-import { Badge, Card, PageHeader } from '@/components/ui';
+import { Badge, Card, IconCheck, PageHeader } from '@/components/ui';
 
 export const metadata = { title: 'Plan & billing' };
 
@@ -31,6 +31,15 @@ function UsageBar({ label, used, limit }: { label: string; used: number; limit: 
   );
 }
 
+function PlanFeature({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-center gap-2 text-[13px] text-ink-500">
+      <IconCheck className="h-3.5 w-3.5 shrink-0 text-success-600" />
+      {children}
+    </li>
+  );
+}
+
 export default async function PlanPage() {
   const { tenantId } = await requireMerchant('billing:read');
   const [current, allPlans, usage] = await Promise.all([
@@ -48,7 +57,7 @@ export default async function PlanPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[13px] font-medium uppercase tracking-wide text-ink-400">Current plan</p>
-            <p className="mt-1 text-[20px] font-bold">{plan?.name ?? 'Free'}</p>
+            <p className="mt-1 font-display text-[20px] font-semibold">{plan?.name ?? 'Free'}</p>
           </div>
           <Badge tone={plan?.priceMinor ? 'info' : 'neutral'}>
             {plan?.priceMinor ? `${formatMoney(plan.priceMinor, plan.currency as 'INR')}/${plan.interval}` : 'Free'}
@@ -76,21 +85,29 @@ export default async function PlanPage() {
           <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-ink-400">Available plans</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {allPlans.map((p) => (
-              <Card key={p.key} className={p.key === plan?.key ? 'ring-2 ring-brand-600' : ''}>
-                <p className="font-semibold">{p.name}</p>
-                <p className="mt-1 text-[20px] font-bold tabular-nums">
+              <Card
+                key={p.key}
+                interactive={p.key !== plan?.key}
+                className={p.key === plan?.key ? 'ring-2 ring-brand-600' : ''}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-display text-[16px] font-semibold">{p.name}</p>
+                  {p.key === plan?.key && (
+                    <Badge tone="success" dot>
+                      Current
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-1 font-display text-[22px] font-semibold tabular-nums">
                   {p.priceMinor ? formatMoney(p.priceMinor, p.currency as 'INR') : '₹0'}
                   <span className="text-[13px] font-normal text-ink-400">/{p.interval}</span>
                 </p>
-                <ul className="mt-3 space-y-1 text-[13px] text-ink-500">
-                  {p.features.ai && <li>AI assistant</li>}
-                  {p.features.website && <li>Website</li>}
-                  {p.features.leadInbox && <li>Lead inbox</li>}
-                  {p.features.removeBranding && <li>Remove platform branding</li>}
+                <ul className="mt-3 space-y-1.5">
+                  {p.features.ai && <PlanFeature>AI assistant</PlanFeature>}
+                  {p.features.website && <PlanFeature>Website</PlanFeature>}
+                  {p.features.leadInbox && <PlanFeature>Lead inbox</PlanFeature>}
+                  {p.features.removeBranding && <PlanFeature>Remove platform branding</PlanFeature>}
                 </ul>
-                {p.key === plan?.key && (
-                  <Badge tone="success">Current plan</Badge>
-                )}
               </Card>
             ))}
           </div>
