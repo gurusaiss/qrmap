@@ -18,7 +18,7 @@ const displaySerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: { default: 'QRmap', template: '%s · QRmap' },
+  title: { default: 'QRShop', template: '%s · QRShop' },
   description: 'A permanent digital address for every local business.',
 };
 

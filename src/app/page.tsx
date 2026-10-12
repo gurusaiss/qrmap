@@ -35,7 +35,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       <header className="mx-auto flex max-w-4xl items-center justify-between px-4 py-5">
-        <span className="font-display text-[18px] font-semibold tracking-tight">QRmap</span>
+        <span className="font-display text-[18px] font-semibold tracking-tight">QRShop</span>
         <Link href="/login" className="text-[14px] font-medium text-ink-600 transition-colors hover:text-brand-700">
           Merchant sign in
         </Link>
