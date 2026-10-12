@@ -18,7 +18,7 @@ const displaySerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: { default: 'Merchant Platform', template: '%s' },
+  title: { default: 'QRmap', template: '%s · QRmap' },
   description: 'A permanent digital address for every local business.',
 };
 

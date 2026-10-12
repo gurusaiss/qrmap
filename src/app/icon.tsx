@@ -19,10 +19,10 @@ export default function Icon() {
           color: 'white',
           fontSize: 20,
           fontWeight: 700,
-          fontFamily: 'serif',
+          fontFamily: 'sans-serif',
         }}
       >
-        M
+        Q
       </div>
     ),
     size,
