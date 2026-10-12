@@ -4,13 +4,18 @@ import { withSystem } from '@/modules/tenancy';
 import { schema } from '@/modules/db/client';
 import { env } from '@/modules/core/env';
 
-export const revalidate = 3600;
-
 /**
+ * Computed at request time, not build time: it reads PUBLIC_QR_ORIGIN and
+ * queries the live database for published merchants, neither of which a
+ * container build step has access to (no .env file, no DB network access
+ * during `docker build`). Previously `revalidate = 3600` assumed build-time
+ * env/DB access was available, which broke the first containerized deploy.
+ *
  * Every published, active merchant's canonical URL. QR scanning is the
  * primary V1 acquisition path (docs/02 §31), but a merchant page should still
  * be discoverable through search once it exists.
  */
+export const dynamic = 'force-dynamic';
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const origin = env().PUBLIC_QR_ORIGIN;
 
