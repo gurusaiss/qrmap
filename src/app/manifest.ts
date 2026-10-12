@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'QRShop',
-    short_name: 'QRShop',
+    name: 'QRmap',
+    short_name: 'QRmap',
     description: 'A permanent digital address for every local business.',
     start_url: '/app',
     display: 'standalone',

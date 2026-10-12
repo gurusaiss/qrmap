@@ -18,8 +18,8 @@ function SignMark() {
 
 const POINTS = [
   {
-    title: 'Permanent by design',
-    body: 'The address never changes, even if you rename your shop or swap your menu. Print the code once.',
+    title: 'Your shop’s own navigator',
+    body: 'One fixed point customers always land on, the same way a map pin never moves — even if you rename your shop or swap your menu.',
   },
   {
     title: 'Built for one phone',
@@ -35,7 +35,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       <header className="mx-auto flex max-w-4xl items-center justify-between px-4 py-5">
-        <span className="font-display text-[18px] font-semibold tracking-tight">QRShop</span>
+        <span className="font-display text-[18px] font-semibold tracking-tight">QRmap</span>
         <Link href="/login" className="text-[14px] font-medium text-ink-600 transition-colors hover:text-brand-700">
           Merchant sign in
         </Link>
@@ -48,11 +48,12 @@ export default function HomePage() {
               One code. One address. Forever.
             </p>
             <h1 className="mt-3 text-balance font-display text-[34px] font-semibold leading-[1.1] tracking-tight sm:text-[42px]">
-              A permanent digital address for every local shop.
+              Think of it as Google Maps for your shop.
             </h1>
             <p className="mt-4 max-w-md text-[16px] leading-relaxed text-ink-500">
-              Print one QR code and stick it on your door or counter. Change your hours, prices or
-              offers whenever you like — the code behind it never has to be reprinted.
+              Customers find Google Maps and never need a different one for the same place.
+              QRmap works the same way for your shop online — print the code once, and that&apos;s
+              how customers always navigate to you, no matter what changes behind it.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <ButtonLink href="/login" className="px-6">
