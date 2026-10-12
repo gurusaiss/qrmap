@@ -220,7 +220,8 @@ if (process.argv[1]?.endsWith('seed.ts')) {
     .then(() => closeDb())
     .then(() => process.exit(0))
     .catch((err: unknown) => {
-      process.stderr.write(`seed failed: ${String(err)}\n`);
+      const cause = err instanceof Error && err.cause ? `\ncause: ${String(err.cause)}` : '';
+      process.stderr.write(`seed failed: ${String(err)}${cause}\n`);
       process.exit(1);
     });
 }

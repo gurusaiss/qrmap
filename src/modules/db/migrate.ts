@@ -42,15 +42,15 @@ export async function runMigrations(ownerUrl: string): Promise<void> {
   }
 }
 
-const invokedDirectly = process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop() ?? '');
-if (invokedDirectly) {
+if (process.argv[1]?.endsWith('migrate.ts') || process.argv[1]?.endsWith('migrate.js')) {
   const url = process.env.DATABASE_URL_OWNER;
   if (!url) {
     process.stderr.write('DATABASE_URL_OWNER is not set\n');
     process.exit(1);
   }
   runMigrations(url).catch((err: unknown) => {
-    process.stderr.write(`migration failed: ${String(err)}\n`);
+    const cause = err instanceof Error && err.cause ? `\ncause: ${String(err.cause)}` : '';
+    process.stderr.write(`migration failed: ${String(err)}${cause}\n`);
     process.exit(1);
   });
 }
