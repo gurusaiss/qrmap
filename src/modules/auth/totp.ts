@@ -69,7 +69,7 @@ export function verifyTotp(secret: string, code: string, now = new Date()): bool
 }
 
 /** `otpauth://` URI for rendering as a QR code in an authenticator app. */
-export function totpProvisioningUri(secret: string, accountLabel: string, issuer = 'MerchantPlatform'): string {
+export function totpProvisioningUri(secret: string, accountLabel: string, issuer = 'QRmap'): string {
   const label = encodeURIComponent(`${issuer}:${accountLabel}`);
   const params = new URLSearchParams({ secret, issuer, algorithm: 'SHA1', digits: '6', period: '30' });
   return `otpauth://totp/${label}?${params.toString()}`;
