@@ -25,6 +25,14 @@ const schema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_BUCKET: z.string().optional(),
   R2_PUBLIC_BASE_URL: z.string().optional(),
+  /**
+   * The driver is named 'r2' but speaks plain S3-compatible SigV4, so any
+   * provider with that API works (Backblaze B2, Wasabi, MinIO...). Both
+   * default to Cloudflare R2's own shape when unset, so existing R2 setups
+   * need neither variable.
+   */
+  R2_ENDPOINT_HOST: z.string().optional(),
+  R2_REGION: z.string().default('auto'),
 
   AI_PROVIDER: z.enum(['none', 'mock', 'gemini', 'groq', 'cloudflare']).default('none'),
   AI_API_KEY: z.string().optional(),
