@@ -86,6 +86,22 @@
     --surface: #251d17;
     --border: #3a2e24;
     --text: #f3ece1;
+
+    /* The ink-* scale itself must flip too, not just the semantic aliases
+       above: dozens of screens reference `text-ink-900` / `bg-ink-100`
+       directly rather than through --text/--surface. Without this, those
+       fixed-dark text colours sat on top of the now-dark surface above with
+       almost no contrast - e.g. every form input's typed text became
+       unreadable, since Input's text-ink-900 and bg-[var(--surface)] both
+       resolved to near-identical dark browns. Values re-checked for
+       WCAG contrast against both --bg and --surface above. */
+    --color-ink-900: #f3ece1;
+    --color-ink-700: #d9cbb9;
+    --color-ink-500: #ab998a;
+    --color-ink-400: #8a7968;
+    --color-ink-200: #3a2e24;
+    --color-ink-100: #2f241a;
+    --color-ink-50: #211a13;
   }
 }
 
