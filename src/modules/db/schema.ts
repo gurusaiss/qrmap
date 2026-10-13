@@ -140,6 +140,8 @@ export const users = pgTable(
     email: text('email'),
     passwordHash: text('password_hash'),
     totpSecret: text('totp_secret'),
+    /** Static 6-digit PIN, platform-admin second factor (see docs/09 for why this replaced TOTP). */
+    adminPinHash: text('admin_pin_hash'),
     fullName: text('full_name'),
     status: userStatus('status').notNull().default('active'),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),

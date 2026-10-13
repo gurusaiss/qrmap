@@ -25,7 +25,6 @@ import { LIMITS, RateLimitError, enforce, maybeSweep } from './rate-limit';
 import { DURABLE_LIMITS, enforceDurable } from './durable-rate-limit';
 import type { MerchantRole, Principal, PlatformRole } from './rbac';
 import { sendSms } from '../notify/sms';
-import { generateTotpSecret, totpProvisioningUri, verifyTotp } from './totp';
 import { recordAuditSafe } from '../core/audit';
 
 const SESSION_TTL_DAYS = 90;
@@ -137,16 +136,16 @@ export async function verifyOtp(
 
 export type PasswordLoginResult =
   | { step: 'done'; token: string; userId: string }
-  | { step: 'totp_setup'; userId: string; secret: string; otpauthUri: string }
-  | { step: 'totp_required'; userId: string };
+  | { step: 'pin_setup'; userId: string }
+  | { step: 'pin_required'; userId: string };
 
 /**
- * Password step only. Platform admins carry mandatory TOTP 2FA (docs/03
- * §C4), so a platform admin never gets a session from this call alone — it
- * either asks for a code (`totp_required`) or, on the very first login,
- * provisions a secret and asks the admin to enrol an authenticator app
- * (`totp_setup`). Merchants who use password login (rather than phone-OTP)
- * are not required to have 2FA and get a session immediately.
+ * Password step only. Platform admins carry a mandatory static 6-digit PIN
+ * as a second factor, so a platform admin never gets a session from this
+ * call alone — it either asks for the existing PIN (`pin_required`) or, on
+ * the very first login, asks them to choose one (`pin_setup`). Merchants who
+ * use password login (rather than phone-OTP) are not required to have a
+ * second factor and get a session immediately.
  */
 export async function loginWithPassword(
   email: string,
@@ -177,17 +176,7 @@ export async function loginWithPassword(
       .limit(1);
 
     if (admin) {
-      if (!user.totpSecret) {
-        const secret = generateTotpSecret();
-        await tx.update(schema.users).set({ totpSecret: secret }).where(eq(schema.users.id, user.id));
-        return {
-          step: 'totp_setup',
-          userId: user.id,
-          secret,
-          otpauthUri: totpProvisioningUri(secret, email.trim().toLowerCase()),
-        };
-      }
-      return { step: 'totp_required', userId: user.id };
+      return { step: user.adminPinHash ? 'pin_required' : 'pin_setup', userId: user.id };
     }
 
     const token = await createSession(tx, user.id, context);
@@ -197,17 +186,21 @@ export async function loginWithPassword(
 }
 
 /**
- * Second step for platform admins: verify the 6-digit code and only then
- * create a session. Used identically for first-time enrolment and every
- * login after it — once a secret is stored, checking a code is checking a
- * code either way.
+ * Second step for platform admins: either choose a PIN for the first time
+ * (`isSetup`) or verify the existing one, then create a session. A static
+ * PIN rather than TOTP, by deliberate choice (docs/09) — weaker than a true
+ * second factor since it's "something you know" twice rather than "know +
+ * have", but is usable without an authenticator app.
  */
-export async function completeTotpLogin(
+export async function completePinLogin(
   userId: string,
-  code: string,
+  pin: string,
   context: { ip: string; userAgent: string },
+  isSetup: boolean,
 ): Promise<{ token: string; userId: string }> {
-  await enforceDurable(`totp:${userId}`, DURABLE_LIMITS.totpPerUser);
+  await enforceDurable(`pin:${userId}`, DURABLE_LIMITS.pinPerUser);
+
+  if (!/^\d{6}$/.test(pin)) throw new AuthError('PIN must be exactly 6 digits.');
 
   return withSystem(async ({ tx }) => {
     const [admin] = await tx
@@ -217,14 +210,25 @@ export async function completeTotpLogin(
       .limit(1);
     const [user] = await tx.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
 
-    if (!admin || !user?.totpSecret || !verifyTotp(user.totpSecret, code)) {
-      await recordAuditSafe({
-        action: 'security.totp_rejected',
-        actorUserId: userId,
-        actorType: 'platform',
-        entityType: 'totp_attempt',
-      });
-      throw new AuthError('That code is not correct.');
+    if (!admin || !user) throw new AuthError('That code is not correct.');
+
+    if (isSetup) {
+      // Re-check here, not just in the UI: a stale "setup" form resubmitted
+      // after a PIN already exists must not silently overwrite it.
+      if (user.adminPinHash) throw new AuthError('A PIN is already set for this account.');
+      const adminPinHash = await hashPassword(pin);
+      await tx.update(schema.users).set({ adminPinHash }).where(eq(schema.users.id, userId));
+    } else {
+      const ok = user.adminPinHash && (await verifyPassword(pin, user.adminPinHash));
+      if (!ok) {
+        await recordAuditSafe({
+          action: 'security.pin_rejected',
+          actorUserId: userId,
+          actorType: 'platform',
+          entityType: 'pin_attempt',
+        });
+        throw new AuthError('That PIN is not correct.');
+      }
     }
 
     const token = await createSession(tx, userId, context);

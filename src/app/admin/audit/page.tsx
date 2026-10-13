@@ -10,7 +10,7 @@ const DANGER_ACTIONS = new Set([
   'slug.change',
   'qr.repoint',
   'admin.impersonate.start',
-  'security.totp_rejected',
+  'security.pin_rejected',
   'security.client_tenant_id_ignored',
 ]);
 

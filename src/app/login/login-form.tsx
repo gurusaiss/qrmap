@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react';
 import { Button, ErrorText, Field, Input } from '@/components/ui';
 import {
-  completeTotpLoginAction,
+  completePinLoginAction,
   passwordLoginAction,
   sendOtpAction,
   verifyOtpAction,
@@ -15,36 +15,28 @@ const initial: ActionState = {};
 /**
  * Phone + OTP is the primary route: in this market phone is the real identity
  * and email is a weak identifier. Email + password is kept for platform
- * staff, who additionally carry mandatory TOTP 2FA (docs/03 §C4) — enforced
- * here as an unavoidable second step, never a skippable one.
+ * staff, who additionally carry a mandatory 6-digit PIN as a second step
+ * (docs/09) — enforced here as unavoidable, never skippable.
  */
 export function LoginForm() {
   const [mode, setMode] = useState<'phone' | 'password'>('phone');
   const [otpState, sendOtp] = useActionState(sendOtpAction, initial);
   const [verifyState, verify] = useActionState(verifyOtpAction, initial);
   const [passwordState, login] = useActionState(passwordLoginAction, initial);
-  const [totpState, verifyTotpCode] = useActionState(completeTotpLoginAction, initial);
+  const [pinState, verifyPin] = useActionState(completePinLoginAction, initial);
 
   const awaitingCode = otpState.sent || verifyState.sent;
   const phone = verifyState.phone ?? otpState.phone ?? '';
 
-  // Once the server has told us to enrol or verify TOTP, that step owns the
-  // screen until it resolves — there is no way back to typing the password
-  // again without literally reloading, which is the point of a mandatory step.
-  const totpStep = totpState.totpStep ?? passwordState.totpStep;
-  const totpUserId = totpState.totpUserId ?? passwordState.totpUserId;
+  // Once the server has told us to set up or verify the PIN, that step owns
+  // the screen until it resolves — there is no way back to typing the
+  // password again without literally reloading, which is the point of a
+  // mandatory step.
+  const pinStep = pinState.pinStep ?? passwordState.pinStep;
+  const pinUserId = pinState.pinUserId ?? passwordState.pinUserId;
 
-  if (totpStep && totpUserId) {
-    return (
-      <TotpStep
-        step={totpStep}
-        userId={totpUserId}
-        secret={passwordState.totpSecret}
-        otpauthUri={passwordState.totpOtpauthUri}
-        action={verifyTotpCode}
-        error={totpState.error}
-      />
-    );
+  if (pinStep && pinUserId) {
+    return <PinStep step={pinStep} userId={pinUserId} action={verifyPin} error={pinState.error} />;
   }
 
   if (mode === 'password') {
@@ -115,44 +107,26 @@ export function LoginForm() {
   );
 }
 
-function TotpStep({
+function PinStep({
   step,
   userId,
-  secret,
-  otpauthUri,
   action,
   error,
 }: {
   step: 'setup' | 'required';
   userId: string;
-  secret?: string;
-  otpauthUri?: string;
   action: (payload: FormData) => void;
   error?: string;
 }) {
   return (
     <div className="mt-6 space-y-4">
       {step === 'setup' && (
-        <div className="card space-y-3 p-4">
-          <h2 className="font-semibold">Set up two-factor authentication</h2>
+        <div className="card space-y-2 p-4">
+          <h2 className="font-semibold">Choose a 6-digit PIN</h2>
           <p className="text-[14px] text-ink-500">
-            Platform accounts require an authenticator app (Google Authenticator, Authy, 1Password).
-            Add this account using the code below, then enter the 6-digit number it shows.
+            You&apos;ll enter this PIN, along with your password, every time you sign in to the admin
+            console. Choose something you won&apos;t forget — there is no self-service reset yet.
           </p>
-          {otpauthUri && (
-            <img
-              alt="Scan this QR code in your authenticator app"
-              width={200}
-              height={200}
-              className="mx-auto rounded-lg border border-ink-200"
-              src={`/api/totp-qr?uri=${encodeURIComponent(otpauthUri)}`}
-            />
-          )}
-          {secret && (
-            <p className="text-center font-mono text-[13px] text-ink-500">
-              Manual entry key: {secret}
-            </p>
-          )}
         </div>
       )}
 
@@ -160,11 +134,23 @@ function TotpStep({
         <ErrorText>{error}</ErrorText>
         <input type="hidden" name="userId" value={userId} />
         <input type="hidden" name="wasSetup" value={step === 'setup' ? '1' : '0'} />
-        <Field label="Authenticator code">
-          <Input name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" required autoFocus />
+        <Field label={step === 'setup' ? 'New PIN' : 'PIN'}>
+          <Input name="pin" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" required autoFocus />
         </Field>
+        {step === 'setup' && (
+          <Field label="Confirm PIN">
+            <Input
+              name="confirmPin"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={6}
+              pattern="[0-9]{6}"
+              required
+            />
+          </Field>
+        )}
         <Button type="submit" className="w-full">
-          Verify
+          {step === 'setup' ? 'Set PIN and sign in' : 'Verify'}
         </Button>
       </form>
     </div>

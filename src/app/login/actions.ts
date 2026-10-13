@@ -3,7 +3,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
-  completeTotpLogin,
+  completePinLogin,
   loginWithPassword,
   requestOtp,
   revokeSession,
@@ -18,10 +18,8 @@ export type ActionState = {
   error?: string;
   sent?: boolean;
   phone?: string;
-  totpStep?: 'setup' | 'required';
-  totpUserId?: string;
-  totpSecret?: string;
-  totpOtpauthUri?: string;
+  pinStep?: 'setup' | 'required';
+  pinUserId?: string;
 };
 
 async function requestContext(): Promise<{ ip: string; userAgent: string }> {
@@ -73,40 +71,34 @@ export async function passwordLoginAction(_prev: ActionState, formData: FormData
     return { error: message(error) };
   }
 
-  if (result.step === 'totp_setup') {
-    return {
-      totpStep: 'setup',
-      totpUserId: result.userId,
-      totpSecret: result.secret,
-      totpOtpauthUri: result.otpauthUri,
-    };
+  if (result.step === 'pin_setup') {
+    return { pinStep: 'setup', pinUserId: result.userId };
   }
-  if (result.step === 'totp_required') {
-    return { totpStep: 'required', totpUserId: result.userId };
+  if (result.step === 'pin_required') {
+    return { pinStep: 'required', pinUserId: result.userId };
   }
 
   await setSessionCookie(result.token);
   redirect('/admin');
 }
 
-/** Second step for platform admins: verify the authenticator app code. */
-export async function completeTotpLoginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+/** Second step for platform admins: choose a PIN (first login) or verify it (every login after). */
+export async function completePinLoginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const userId = String(formData.get('userId') ?? '');
-  const code = String(formData.get('code') ?? '');
+  const pin = String(formData.get('pin') ?? '');
+  const confirmPin = formData.get('confirmPin');
   const wasSetup = formData.get('wasSetup') === '1';
+
+  if (wasSetup && confirmPin !== null && pin !== String(confirmPin)) {
+    return { error: "PINs don't match.", pinStep: 'setup', pinUserId: userId };
+  }
 
   try {
     const context = await requestContext();
-    const { token } = await completeTotpLogin(userId, code, context);
+    const { token } = await completePinLogin(userId, pin, context, wasSetup);
     await setSessionCookie(token);
   } catch (error) {
-    return {
-      error: message(error),
-      totpStep: wasSetup ? 'setup' : 'required',
-      totpUserId: userId,
-      // Secret/URI are not re-sent on a failed retry: the QR code was already
-      // shown once, and re-fetching it would mean generating a new secret.
-    };
+    return { error: message(error), pinStep: wasSetup ? 'setup' : 'required', pinUserId: userId };
   }
   redirect('/admin');
 }

@@ -63,5 +63,5 @@ export const DURABLE_LIMITS = {
   otpRequestPerPhone: { limit: 3, windowSeconds: 15 * 60 },
   otpVerifyPerPhone: { limit: 10, windowSeconds: 15 * 60 },
   loginPerIp: { limit: 10, windowSeconds: 15 * 60 },
-  totpPerUser: { limit: 5, windowSeconds: 15 * 60 },
+  pinPerUser: { limit: 5, windowSeconds: 15 * 60 },
 } as const;
