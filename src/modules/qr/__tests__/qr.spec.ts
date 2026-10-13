@@ -13,6 +13,7 @@ import {
   renderStandeePdf,
   renderSvg,
   renderVerifiedPng,
+  renderVerifiedSvg,
   verifyDecodes,
 } from '../index';
 
@@ -84,6 +85,18 @@ describe('rendering', () => {
     const svg = await renderSvg(publicUrlForSlug(ORIGIN, 'sharma-salon'));
     expect(svg).toContain('<svg');
     expect(svg).toContain('viewBox');
+  });
+
+  it('verifies the SVG banner download decodes back to the exact URL, same as the PNG', async () => {
+    // Regression: the SVG download ("for banners") used to skip verification
+    // entirely - a merchant could download and print an SVG that silently
+    // failed to scan, with no check ever catching it.
+    const url = publicUrlForSlug(ORIGIN, 'sharma-salon');
+    const svg = await renderVerifiedSvg(url);
+    expect(svg).toContain('<svg');
+    await expect(verifyDecodes(svg, publicUrlForSlug(ORIGIN, 'a-different-shop'))).rejects.toThrow(
+      QrVerificationError,
+    );
   });
 
   it('renders a print-ready standee PDF containing the printed URL', async () => {

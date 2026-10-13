@@ -131,16 +131,18 @@ export async function renderSvg(url: string, options?: RenderOptions): Promise<s
 }
 
 /**
- * Decodes a rendered code and checks it resolves back to the expected URL.
- * A code that does not decode is never offered for download - the merchant
- * would otherwise print it and only discover the problem in the shop.
+ * Decodes a rendered code (PNG bytes, or SVG markup rasterised first) and
+ * checks it resolves back to the expected URL. A code that does not decode
+ * is never offered for download - the merchant would otherwise print it and
+ * only discover the problem in the shop.
  */
-export async function verifyDecodes(png: Buffer, expectedUrl: string): Promise<void> {
+export async function verifyDecodes(image: Buffer | string, expectedUrl: string): Promise<void> {
   const [{ default: jsQR }, { default: sharp }] = await Promise.all([
     import('jsqr'),
     import('sharp'),
   ]);
-  const { data, info } = await sharp(png)
+  const input = typeof image === 'string' ? Buffer.from(image) : image;
+  const { data, info } = await sharp(input)
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -158,6 +160,13 @@ export async function renderVerifiedPng(url: string, options?: RenderOptions): P
   const png = await renderPng(url, options);
   await verifyDecodes(png, url);
   return png;
+}
+
+/** SVG equivalent of renderVerifiedPng - the "Download SVG (for banners)" button uses this. */
+export async function renderVerifiedSvg(url: string, options?: RenderOptions): Promise<string> {
+  const svg = await renderSvg(url, options);
+  await verifyDecodes(svg, url);
+  return svg;
 }
 
 /**

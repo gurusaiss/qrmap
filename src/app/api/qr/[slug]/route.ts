@@ -2,8 +2,8 @@ import {
   QrContrastError,
   QrVerificationError,
   publicUrlForSlug,
-  renderSvg,
   renderVerifiedPng,
+  renderVerifiedSvg,
 } from '@/modules/qr';
 import { resolveSlug } from '@/modules/merchants/slugs';
 import { env } from '@/modules/core/env';
@@ -41,7 +41,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
 
   try {
     if (extension === 'svg') {
-      const svg = await renderSvg(url, style);
+      // Verified: a code that does not decode back to this exact URL is never served.
+      const svg = await renderVerifiedSvg(url, style);
       return new Response(svg, {
         headers: {
           'Content-Type': 'image/svg+xml',
