@@ -9,6 +9,7 @@ import {
   deleteMedia,
   deleteOffer,
   replaceHours,
+  updateAiConfig,
   updateCatalogItem,
   updateOffer,
   updateProfile,
@@ -216,6 +217,20 @@ export async function deletePhotoAction(mediaId: string): Promise<void> {
   const { tenantId } = await requireMerchant('media:write');
   await deleteMedia(tenantId, mediaId);
   await revalidateMerchant(tenantId);
+}
+
+export async function saveAiConfigAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('ai:configure');
+    await updateAiConfig(tenantId, {
+      isEnabled: formData.get('isEnabled') === 'on',
+      extraInstructions: optional(formData.get('extraInstructions')),
+    });
+    await revalidateMerchant(tenantId);
+    return { success: 'Saved.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
 }
 
 export async function acknowledgeDomainChangeAction(): Promise<void> {

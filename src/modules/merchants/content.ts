@@ -353,6 +353,38 @@ export async function listMedia(tenantId: string) {
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* AI assistant settings                                                      */
+/* -------------------------------------------------------------------------- */
+
+export const aiConfigSchema = z.object({
+  isEnabled: z.boolean().optional(),
+  extraInstructions: z.string().trim().max(2000).nullish(),
+});
+
+export type AiConfigInput = z.infer<typeof aiConfigSchema>;
+
+export async function getAiConfig(tenantId: string) {
+  return withTenant(tenantId, async ({ tx }) => {
+    const [row] = await tx
+      .select()
+      .from(schema.aiConfigs)
+      .where(eq(schema.aiConfigs.tenantId, tenantId))
+      .limit(1);
+    return row ?? null;
+  });
+}
+
+export async function updateAiConfig(tenantId: string, input: AiConfigInput): Promise<void> {
+  const data = aiConfigSchema.parse(input);
+  const patch = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+  if (Object.keys(patch).length === 0) return;
+  await withTenant(tenantId, async ({ tx }) => {
+    await tx.update(schema.aiConfigs).set(patch as never).where(eq(schema.aiConfigs.tenantId, tenantId));
+    await bumpContextVersion(tx, tenantId);
+  });
+}
+
 export async function deleteMedia(tenantId: string, mediaId: string): Promise<boolean> {
   return withTenant(tenantId, async ({ tx }) => {
     const [row] = await tx
