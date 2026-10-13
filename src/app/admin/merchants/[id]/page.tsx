@@ -8,6 +8,7 @@ import { getTenantFeatureOverrides } from '@/modules/platform/features';
 import { Badge, Card, PageHeader, Stat } from '@/components/ui';
 import { DangerZone } from './danger-zone';
 import { FeaturesCard } from './features-card';
+import { ImpersonateButton } from './impersonate-button';
 
 export const metadata = { title: 'Merchant' };
 
@@ -35,6 +36,10 @@ export default async function MerchantDetailPage({ params }: { params: Promise<{
           {tenant.status}
         </Badge>
         {primary && <span className="font-mono text-[14px] text-ink-500">/m/{primary.slug}</span>}
+      </div>
+
+      <div className="mb-6">
+        <ImpersonateButton tenantId={id} />
       </div>
 
       <div className="mb-6 grid grid-cols-3 gap-3">

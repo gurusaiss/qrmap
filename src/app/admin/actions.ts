@@ -1,8 +1,11 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requirePlatform, describeAuthError } from '@/modules/auth/session-server';
+import { setSessionCookie } from '@/modules/auth/session-server';
+import { startImpersonation } from '@/modules/auth/service';
 import { createTenant, setTenantStatus } from '@/modules/merchants/tenants';
 import { changeSlug } from '@/modules/merchants/slugs';
 import { setTenantFeatureBlock } from '@/modules/platform/features';
@@ -97,4 +100,30 @@ export async function recordDomainChangeAction(): Promise<void> {
   const { session } = await requirePlatform('platform:flags:write');
   await recordDomainChange(session.userId);
   revalidatePath('/admin/settings');
+}
+
+/**
+ * Signs the admin into this merchant's own dashboard, as that merchant's
+ * owner. Currently the only way into a merchant dashboard besides the
+ * merchant themselves, since phone+OTP login is hidden until SMS is
+ * configured and merchants have no password to sign in with otherwise.
+ */
+export async function impersonateTenantAction(tenantId: string): Promise<FormState> {
+  const { session } = await requirePlatform('platform:impersonate');
+  const h = await headers();
+  let token: string;
+  try {
+    ({ token } = await startImpersonation({
+      tenantId,
+      actorAdminUserId: session.userId,
+      context: {
+        ip: h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '0.0.0.0',
+        userAgent: h.get('user-agent') ?? '',
+      },
+    }));
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+  await setSessionCookie(token);
+  redirect('/app');
 }

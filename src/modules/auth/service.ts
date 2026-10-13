@@ -348,6 +348,48 @@ export function principalFromSession(session: ResolvedSession | null): Principal
   return { kind: 'anon' };
 }
 
+/**
+ * Lets a platform admin view and act inside a merchant's dashboard, scoped to
+ * that tenant's own owner account. This is the ONLY way into a merchant
+ * dashboard right now for anyone other than the merchant themselves, since
+ * merchants have no password and phone+OTP login is hidden until an SMS
+ * driver is configured (see login-form.tsx) - without it, nobody could ever
+ * demo or support a merchant's account.
+ */
+export async function startImpersonation(args: {
+  tenantId: string;
+  actorAdminUserId: string;
+  context: { ip: string; userAgent: string };
+}): Promise<{ token: string }> {
+  return withSystem(async ({ tx }) => {
+    const [membership] = await tx
+      .select({ userId: schema.memberships.userId })
+      .from(schema.memberships)
+      .where(and(eq(schema.memberships.tenantId, args.tenantId), eq(schema.memberships.role, 'owner')))
+      .orderBy(schema.memberships.createdAt)
+      .limit(1);
+    if (!membership) {
+      throw new AuthError('This merchant has no owner account yet to sign in as.');
+    }
+
+    const token = await createSession(tx, membership.userId, {
+      ...args.context,
+      impersonatedBy: args.actorAdminUserId,
+    });
+
+    await recordAuditSafe({
+      action: 'admin.impersonate.start',
+      actorUserId: args.actorAdminUserId,
+      actorType: 'platform',
+      tenantId: args.tenantId,
+      entityType: 'tenant',
+      entityId: args.tenantId,
+    });
+
+    return { token };
+  });
+}
+
 export async function revokeSession(token: string): Promise<void> {
   await withSystem(({ tx }) =>
     tx

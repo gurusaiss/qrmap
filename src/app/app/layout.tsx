@@ -40,7 +40,7 @@ export default async function MerchantLayout({ children }: { children: React.Rea
             type="submit"
             className="tap-target rounded-[var(--radius-sm)] px-3 text-[14px] font-medium text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-700"
           >
-            Sign out
+            {session.impersonatedBy ? 'End impersonation' : 'Sign out'}
           </button>
         </form>
       </header>
