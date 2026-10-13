@@ -80,9 +80,47 @@ export async function requirePlatform(action?: Action): Promise<PlatformContext>
   return { session, principal };
 }
 
+type PostgresCause = {
+  code?: string;
+  detail?: string;
+  constraint_name?: string;
+  message?: string;
+};
+
+/**
+ * Drizzle wraps every failed query in a generic "Failed query: ..." Error
+ * whose .message is just the SQL and params - the real reason (constraint
+ * violated, missing reference, etc.) is on .cause, straight from postgres.js.
+ * Same gap already fixed once in migrate.ts/seed.ts; this is the form-facing
+ * equivalent, so every admin/merchant action that calls describeAuthError
+ * gets it for free.
+ */
+function postgresCause(error: unknown): PostgresCause | null {
+  const cause = error instanceof Error ? error.cause : undefined;
+  if (cause && typeof cause === 'object' && 'code' in cause) return cause as PostgresCause;
+  return null;
+}
+
+const PG_FRIENDLY_MESSAGE: Record<string, string> = {
+  '23505': 'That value is already in use - try a different one.',
+  '23503': 'That references something that no longer exists.',
+  '23502': 'A required field is missing.',
+  '23514': "That value isn't allowed.",
+};
+
 /** For server actions: returns a friendly message instead of a redirect. */
 export function describeAuthError(error: unknown): string {
   if (error instanceof AuthorizationError) return 'You do not have permission to do that.';
+
+  const pg = postgresCause(error);
+  if (pg) {
+    // Full detail goes to the server log; only a short, real reason reaches the UI.
+    console.error('Database error:', pg.code, pg.constraint_name, pg.detail, pg.message);
+    const friendly = pg.code ? PG_FRIENDLY_MESSAGE[pg.code] : undefined;
+    if (friendly) return pg.constraint_name ? `${friendly} (${pg.constraint_name})` : friendly;
+    return pg.message ?? 'A database error occurred.';
+  }
+
   if (error instanceof Error) return error.message;
   return 'Something went wrong. Please try again.';
 }
