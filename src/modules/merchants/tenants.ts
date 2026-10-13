@@ -9,6 +9,7 @@ import { withSystem } from '../tenancy';
 import { schema } from '../db/client';
 import { recordAudit } from '../core/audit';
 import { claimPrimarySlug, suggestSlug } from './slugs';
+import { normalizeSlugInput } from '../core/slug';
 import { generateQrToken } from '../qr';
 import { isValidTimeZone } from '../core/time';
 
@@ -33,7 +34,12 @@ export async function createTenant(input: CreateTenantInput): Promise<{
   const timezone = input.timezone ?? 'Asia/Kolkata';
   if (!isValidTimeZone(timezone)) throw new Error(`Unknown timezone: ${timezone}`);
 
-  const slug = input.slug ?? (await suggestSlug(input.displayName, input.city));
+  // A typed web address is cleaned up the same way an auto-suggested one is
+  // (lowercased, spaces/punctuation collapsed to hyphens) rather than
+  // rejected outright for casing or spacing a non-technical admin would not
+  // expect to matter - validateSlug (inside claimPrimarySlug) still rejects
+  // what normalizing can't fix: too short, too long, or reserved.
+  const slug = input.slug ? normalizeSlugInput(input.slug) : await suggestSlug(input.displayName, input.city);
 
   const result = await withSystem(async ({ tx }) => {
     const [tenant] = await tx

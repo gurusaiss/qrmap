@@ -13,7 +13,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { withSystem } from '../tenancy';
 import { schema } from '../db/client';
-import { RESERVED_SLUGS, slugCandidates, validateSlug, type SlugError } from '../core/slug';
+import { RESERVED_SLUGS, normalizeSlugInput, slugCandidates, validateSlug, type SlugError } from '../core/slug';
 import { recordAudit } from '../core/audit';
 
 export class SlugUnavailableError extends Error {
@@ -94,19 +94,22 @@ export async function changeSlug(args: {
   newSlug: string;
   actorUserId: string;
 }): Promise<{ previousSlug: string | null; newSlug: string }> {
+  // Same cleanup as a typed slug at tenant creation: casing/spacing/
+  // punctuation is fixed up rather than rejected outright.
+  const newSlug = normalizeSlugInput(args.newSlug);
   const previousSlug = await primarySlugFor(args.tenantId);
-  await withSystem(({ tx }) => claimPrimarySlug(tx, args.tenantId, args.newSlug));
+  await withSystem(({ tx }) => claimPrimarySlug(tx, args.tenantId, newSlug));
   await recordAudit({
     action: 'slug.change',
     actorUserId: args.actorUserId,
     actorType: 'platform',
     tenantId: args.tenantId,
     entityType: 'merchant_slug',
-    entityId: args.newSlug,
+    entityId: newSlug,
     before: { slug: previousSlug },
-    after: { slug: args.newSlug, previousStillRedirects: true },
+    after: { slug: newSlug, previousStillRedirects: true },
   });
-  return { previousSlug, newSlug: args.newSlug };
+  return { previousSlug, newSlug };
 }
 
 export async function primarySlugFor(tenantId: string): Promise<string | null> {

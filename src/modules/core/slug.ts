@@ -48,9 +48,14 @@ export function slugErrorMessage(error: SlugError): string {
   }
 }
 
-/** Best-effort slug from a business name. Never guaranteed unique. */
-export function slugifyBusinessName(name: string): string {
-  const base = name
+/**
+ * Lowercases, swaps `&` for "and", and collapses anything that isn't
+ * [a-z0-9] into single hyphens, trimmed at both ends. Pure character
+ * cleanup - it does not enforce length or reserved-word rules, so the
+ * result still needs `validateSlug`.
+ */
+export function normalizeSlugInput(input: string): string {
+  return input
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
@@ -58,9 +63,13 @@ export function slugifyBusinessName(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
-    .slice(0, SLUG_MAX);
+    .slice(0, SLUG_MAX)
+    .replace(/-$/, '');
+}
 
-  const trimmed = base.replace(/-$/, '');
+/** Best-effort slug from a business name. Never guaranteed unique. */
+export function slugifyBusinessName(name: string): string {
+  const trimmed = normalizeSlugInput(name);
   if (trimmed.length >= SLUG_MIN && !RESERVED_SLUGS.has(trimmed)) return trimmed;
   return trimmed.length === 0 ? 'shop' : `${trimmed}-shop`.slice(0, SLUG_MAX).replace(/-$/, '');
 }
