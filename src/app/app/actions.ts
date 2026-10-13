@@ -15,6 +15,7 @@ import {
 import { publishTenant, unpublishTenant } from '@/modules/merchants/tenants';
 import { primarySlugFor } from '@/modules/merchants/slugs';
 import { parseMoneyToMinor } from '@/modules/core/money';
+import { acknowledgeDomainChange } from '@/modules/platform/settings';
 
 export type FormState = { error?: string; success?: string };
 
@@ -186,5 +187,11 @@ export async function publishAction(): Promise<void> {
 export async function unpublishAction(): Promise<void> {
   const { tenantId, session } = await requireMerchant('profile:write');
   await unpublishTenant(tenantId, session.userId);
+  await revalidateMerchant(tenantId);
+}
+
+export async function acknowledgeDomainChangeAction(): Promise<void> {
+  const { tenantId } = await requireMerchant('profile:read');
+  await acknowledgeDomainChange(tenantId);
   await revalidateMerchant(tenantId);
 }

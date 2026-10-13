@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import { requirePlatform, describeAuthError } from '@/modules/auth/session-server';
 import { createTenant, setTenantStatus } from '@/modules/merchants/tenants';
 import { changeSlug } from '@/modules/merchants/slugs';
+import { setTenantFeatureBlock } from '@/modules/platform/features';
+import { recordDomainChange } from '@/modules/platform/settings';
 
 export type FormState = { error?: string; success?: string };
 
@@ -81,4 +83,18 @@ export async function changeSlugAction(tenantId: string, newSlug: string): Promi
   }
   revalidatePath(`/admin/merchants/${tenantId}`);
   return { success: `Address changed to /m/${newSlug}. The old address still works and redirects here.` };
+}
+
+/** Blocks (or lifts a block on) one feature for one merchant - never forces a feature on. */
+export async function setTenantFeatureBlockAction(tenantId: string, flagKey: string, blocked: boolean): Promise<void> {
+  const { session } = await requirePlatform('platform:flags:write');
+  await setTenantFeatureBlock(tenantId, flagKey, blocked, session.userId);
+  revalidatePath(`/admin/merchants/${tenantId}`);
+}
+
+/** Flags every merchant as needing to reprint their QR code against the new domain. */
+export async function recordDomainChangeAction(): Promise<void> {
+  const { session } = await requirePlatform('platform:flags:write');
+  await recordDomainChange(session.userId);
+  revalidatePath('/admin/settings');
 }

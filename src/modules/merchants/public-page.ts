@@ -11,6 +11,7 @@ import { schema } from '../db/client';
 import { evaluateOpenState, formatWeek, type HoursRow, type OpenState } from '../core/hours';
 import { isPubliclyVisible, offerStatus, describeValidity, type OfferStatus } from '../core/offers';
 import { resolveSlug } from './slugs';
+import { effectiveFeatureEnabled } from '../platform/features';
 
 export type PublicOffer = {
   id: string;
@@ -178,6 +179,17 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
       .where(eq(schema.aiConfigs.tenantId, tenantId))
       .limit(1);
 
+    const [aiOverride] = await tx
+      .select({ enabled: schema.tenantFeatureOverrides.enabled })
+      .from(schema.tenantFeatureOverrides)
+      .where(
+        and(
+          eq(schema.tenantFeatureOverrides.tenantId, tenantId),
+          eq(schema.tenantFeatureOverrides.flagKey, 'ai_assistant'),
+        ),
+      )
+      .limit(1);
+
     const hours: HoursRow[] = hourRows.map((r) => ({
       dayOfWeek: r.dayOfWeek,
       opensAt: r.opensAt,
@@ -289,7 +301,7 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
       services: catalogRows.filter((r) => r.kind === 'service').map(toPublicItem),
       products: catalogRows.filter((r) => r.kind === 'product').map(toPublicItem),
       gallery: galleryRows,
-      aiEnabled: aiConfig?.isEnabled ?? false,
+      aiEnabled: effectiveFeatureEnabled(aiConfig?.isEnabled ?? false, aiOverride ? { ...aiOverride, flagKey: 'ai_assistant' } : undefined),
     };
 
     return { kind: 'ok', data };

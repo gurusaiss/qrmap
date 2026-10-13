@@ -5,8 +5,10 @@ import { primarySlugFor } from '@/modules/merchants/slugs';
 import { listCatalog, listOffers } from '@/modules/merchants/content';
 import { summary } from '@/modules/analytics';
 import { env } from '@/modules/core/env';
+import { shouldShowDomainChangeNotice } from '@/modules/platform/settings';
 import { ButtonLink, Card, IconChevronRight, Stat } from '@/components/ui';
 import { PublishControls } from './publish-controls';
+import { DomainChangeBanner } from './domain-change-banner';
 
 export const metadata = { title: 'Your shop' };
 
@@ -16,12 +18,13 @@ export const metadata = { title: 'Your shop' };
  */
 export default async function DashboardHome() {
   const { tenantId } = await requireMerchant('profile:read');
-  const [tenant, slug, catalog, offers, stats] = await Promise.all([
+  const [tenant, slug, catalog, offers, stats, showDomainNotice] = await Promise.all([
     getTenant(tenantId),
     primarySlugFor(tenantId),
     listCatalog(tenantId, { includeUnavailable: true }),
     listOffers(tenantId),
     summary(tenantId, 7),
+    shouldShowDomainChangeNotice(tenantId),
   ]);
 
   const pageUrl = slug ? `${env().PUBLIC_QR_ORIGIN}/m/${slug}` : null;
@@ -40,6 +43,8 @@ export default async function DashboardHome() {
 
   return (
     <div className="space-y-5">
+      {showDomainNotice && <DomainChangeBanner />}
+
       <Card>
         <p className="text-[13px] font-medium uppercase tracking-wide text-ink-400">Your page address</p>
         {pageUrl ? (

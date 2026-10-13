@@ -1,16 +1,22 @@
 import { requirePlatform } from '@/modules/auth/session-server';
-import { listCategories, listFeatureFlags, listPlans } from '@/modules/platform/settings';
+import { getPlatformSetting, listCategories, listFeatureFlags, listPlans } from '@/modules/platform/settings';
 import { Card, PageHeader } from '@/components/ui';
 import { CreateCategoryForm } from './create-category-form';
 import { CategoryRow } from './category-row';
 import { PlanRow } from './plan-row';
 import { FlagRow } from './flag-row';
+import { DomainSection } from './domain-section';
 
 export const metadata = { title: 'Platform settings' };
 
 export default async function SettingsPage() {
   await requirePlatform();
-  const [categories, plans, flags] = await Promise.all([listCategories(), listPlans(), listFeatureFlags()]);
+  const [categories, plans, flags, domainChangedAt] = await Promise.all([
+    listCategories(),
+    listPlans(),
+    listFeatureFlags(),
+    getPlatformSetting('domain_changed_at'),
+  ]);
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -63,6 +69,11 @@ export default async function SettingsPage() {
             </tbody>
           </table>
         </Card>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-ink-400">Domain</h2>
+        <DomainSection lastChangedAt={domainChangedAt} />
       </section>
     </div>
   );

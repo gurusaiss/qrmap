@@ -3,8 +3,11 @@ import { requirePlatform } from '@/modules/auth/session-server';
 import { getTenant } from '@/modules/merchants/tenants';
 import { slugHistory } from '@/modules/merchants/slugs';
 import { summary } from '@/modules/analytics';
+import { listFeatureFlags } from '@/modules/platform/settings';
+import { getTenantFeatureOverrides } from '@/modules/platform/features';
 import { Badge, Card, PageHeader, Stat } from '@/components/ui';
 import { DangerZone } from './danger-zone';
+import { FeaturesCard } from './features-card';
 
 export const metadata = { title: 'Merchant' };
 
@@ -15,7 +18,12 @@ export default async function MerchantDetailPage({ params }: { params: Promise<{
   const tenant = await getTenant(id);
   if (!tenant) notFound();
 
-  const [slugs, stats] = await Promise.all([slugHistory(id), summary(id, 30)]);
+  const [slugs, stats, flags, overrides] = await Promise.all([
+    slugHistory(id),
+    summary(id, 30),
+    listFeatureFlags(),
+    getTenantFeatureOverrides(id),
+  ]);
   const primary = slugs.find((s) => s.isPrimary);
 
   return (
@@ -52,6 +60,8 @@ export default async function MerchantDetailPage({ params }: { params: Promise<{
           ))}
         </ul>
       </Card>
+
+      <FeaturesCard tenantId={id} flags={flags} overrides={overrides} />
 
       <DangerZone tenantId={id} displayName={tenant.displayName} status={tenant.status} currentSlug={primary?.slug ?? ''} />
     </div>

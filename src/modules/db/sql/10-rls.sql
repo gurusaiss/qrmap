@@ -19,7 +19,7 @@ CREATE OR REPLACE FUNCTION _tenant_tables() RETURNS text[] AS $$
     'catalog_groups', 'catalog_items', 'offers', 'qr_codes',
     'analytics_events', 'analytics_daily',
     'ai_configs', 'ai_conversations', 'ai_messages', 'ai_answer_cache',
-    'subscriptions', 'tenant_feature_overrides'
+    'subscriptions'
   ]
 $$ LANGUAGE sql IMMUTABLE;
 
@@ -79,6 +79,31 @@ GRANT SELECT, INSERT, UPDATE ON merchant_slugs TO mdp_system;
 -- DELETE is granted to nobody, and additionally blocked by a trigger below.
 
 /* -------------------------------------------------------------------------- */
+/* tenant_feature_overrides - an admin-only kill switch. A merchant may read   */
+/* its own overrides (to know a feature was disabled on them) but must never  */
+/* be able to write one - that would let a merchant undo an admin restriction */
+/* with their own connection. Deliberately NOT in the generic tenant-owned    */
+/* table loop above, which grants mdp_app full read/write.                    */
+/* -------------------------------------------------------------------------- */
+ALTER TABLE tenant_feature_overrides ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_feature_overrides FORCE  ROW LEVEL SECURITY;
+-- This table used to be in the generic tenant-owned loop above (FOR ALL to
+-- mdp_app, full read/write). Moving it out of that array does NOT retract
+-- what an earlier run of this same script already granted/created - GRANT is
+-- additive and a policy a DROP doesn't name is never touched. Both the old
+-- policy and the old grants must be undone explicitly, or mdp_app keeps
+-- write access forever on any database this ever ran against before.
+DROP POLICY IF EXISTS tenant_rw   ON tenant_feature_overrides;
+DROP POLICY IF EXISTS tenant_self ON tenant_feature_overrides;
+DROP POLICY IF EXISTS system_rw   ON tenant_feature_overrides;
+REVOKE INSERT, UPDATE, DELETE ON tenant_feature_overrides FROM mdp_app;
+CREATE POLICY tenant_self ON tenant_feature_overrides FOR SELECT TO mdp_app
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+CREATE POLICY system_rw ON tenant_feature_overrides FOR ALL TO mdp_system USING (true) WITH CHECK (true);
+GRANT SELECT ON tenant_feature_overrides TO mdp_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON tenant_feature_overrides TO mdp_system;
+
+/* -------------------------------------------------------------------------- */
 /* memberships                                                                 */
 /* -------------------------------------------------------------------------- */
 ALTER TABLE memberships ENABLE ROW LEVEL SECURITY;
@@ -111,8 +136,8 @@ END $$;
 /* -------------------------------------------------------------------------- */
 /* Reference data - readable by both, writable only by system                  */
 /* -------------------------------------------------------------------------- */
-GRANT SELECT ON categories, plans, feature_flags, merchant_groups TO mdp_app, mdp_system;
-GRANT INSERT, UPDATE, DELETE ON categories, plans, feature_flags, merchant_groups TO mdp_system;
+GRANT SELECT ON categories, plans, feature_flags, merchant_groups, platform_settings TO mdp_app, mdp_system;
+GRANT INSERT, UPDATE, DELETE ON categories, plans, feature_flags, merchant_groups, platform_settings TO mdp_system;
 
 /* -------------------------------------------------------------------------- */
 /* audit_logs - append only. No UPDATE or DELETE grant to anyone.              */

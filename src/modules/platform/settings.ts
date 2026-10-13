@@ -99,6 +99,64 @@ export async function setFeatureFlag(key: string, defaultEnabled: boolean, actor
   });
 }
 
+/* -------------------------------------------------------------------------- */
+/* Domain-change notice                                                       */
+/*                                                                            */
+/* Printed QR codes encode PUBLIC_QR_ORIGIN and are meant to never change -   */
+/* but if the platform ever does move to a new domain, every merchant needs   */
+/* telling so they can reprint. One global timestamp; each tenant's own       */
+/* qr_domain_ack_at tracks whether THEY have acknowledged it yet.             */
+/* -------------------------------------------------------------------------- */
+
+export async function getPlatformSetting(key: string): Promise<string | null> {
+  const [row] = await withSystem(({ tx }) =>
+    tx
+      .select({ value: schema.platformSettings.value })
+      .from(schema.platformSettings)
+      .where(eq(schema.platformSettings.key, key))
+      .limit(1),
+  );
+  return row?.value ?? null;
+}
+
+export async function recordDomainChange(actorUserId: string): Promise<void> {
+  const changedAt = new Date().toISOString();
+  await withSystem(({ tx }) =>
+    tx
+      .insert(schema.platformSettings)
+      .values({ key: 'domain_changed_at', value: changedAt })
+      .onConflictDoUpdate({ target: schema.platformSettings.key, set: { value: changedAt } }),
+  );
+  await recordAudit({
+    action: 'platform.domain_change',
+    actorUserId,
+    actorType: 'platform',
+    entityType: 'platform_settings',
+    entityId: 'domain_changed_at',
+    after: { changedAt },
+  });
+}
+
+export async function shouldShowDomainChangeNotice(tenantId: string): Promise<boolean> {
+  const changedAt = await getPlatformSetting('domain_changed_at');
+  if (!changedAt) return false;
+  const [tenant] = await withSystem(({ tx }) =>
+    tx
+      .select({ qrDomainAckAt: schema.tenants.qrDomainAckAt })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, tenantId))
+      .limit(1),
+  );
+  if (!tenant) return false;
+  return !tenant.qrDomainAckAt || tenant.qrDomainAckAt < new Date(changedAt);
+}
+
+export async function acknowledgeDomainChange(tenantId: string): Promise<void> {
+  await withSystem(({ tx }) =>
+    tx.update(schema.tenants).set({ qrDomainAckAt: new Date() }).where(eq(schema.tenants.id, tenantId)),
+  );
+}
+
 export type AuditEntry = {
   id: string;
   action: string;

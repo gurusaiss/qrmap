@@ -18,7 +18,9 @@ export type AuditAction =
   | 'admin.impersonate.start' | 'admin.impersonate.end'
   | 'security.client_tenant_id_ignored'
   | 'security.pin_rejected'
-  | 'ai.config_change';
+  | 'ai.config_change'
+  | 'tenant.feature_override_change'
+  | 'platform.domain_change';
 
 export type AuditEntry = {
   action: AuditAction;

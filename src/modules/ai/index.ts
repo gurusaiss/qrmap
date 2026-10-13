@@ -19,6 +19,7 @@ import { evaluateOpenState, type HoursRow } from '../core/hours';
 import { isPubliclyVisible, offerStatus } from '../core/offers';
 import { buildTenantContext } from './context';
 import { AiUnavailableError, aiProviderChain, type AiProvider } from './provider';
+import { effectiveFeatureEnabled } from '../platform/features';
 
 export const MAX_QUESTION_CHARS = 300;
 
@@ -191,15 +192,26 @@ export async function ask(options: AskOptions): Promise<Answer> {
   enforce(`ai:m:${options.visitorHash}`, LIMITS.aiPerVisitorMinute);
   enforce(`ai:d:${options.visitorHash}`, LIMITS.aiPerVisitorDay);
 
-  const config = await withTenant(options.tenantId, async ({ tx }) => {
-    const [row] = await tx
+  const { config, override } = await withTenant(options.tenantId, async ({ tx }) => {
+    const [configRow] = await tx
       .select()
       .from(schema.aiConfigs)
       .where(eq(schema.aiConfigs.tenantId, options.tenantId))
       .limit(1);
-    return row ?? null;
+    const [overrideRow] = await tx
+      .select({ enabled: schema.tenantFeatureOverrides.enabled })
+      .from(schema.tenantFeatureOverrides)
+      .where(
+        and(
+          eq(schema.tenantFeatureOverrides.tenantId, options.tenantId),
+          eq(schema.tenantFeatureOverrides.flagKey, 'ai_assistant'),
+        ),
+      )
+      .limit(1);
+    return { config: configRow ?? null, override: overrideRow ?? undefined };
   });
-  if (!config?.isEnabled) throw new AiUnavailableError('The assistant is not enabled for this business.');
+  const aiEnabled = effectiveFeatureEnabled(config?.isEnabled ?? false, override ? { ...override, flagKey: 'ai_assistant' } : undefined);
+  if (!aiEnabled || !config) throw new AiUnavailableError('The assistant is not enabled for this business.');
 
   await logMessage(options.tenantId, 'user', question, {});
 

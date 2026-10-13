@@ -127,6 +127,13 @@ export const featureFlags = pgTable(
   },
 );
 
+/** Generic global key/value store for platform-wide settings (e.g. "we changed domains on X date"). */
+export const platformSettings = pgTable('platform_settings', {
+  key: text('key').primaryKey(),
+  value: text('value'),
+  updatedAt: updatedAt(),
+});
+
 /* ========================================================================== */
 /* Identity                                                                   */
 /* ========================================================================== */
@@ -172,6 +179,8 @@ export const tenants = pgTable(
     /** Bumped on any content write; invalidates the AI answer cache. */
     contextVersion: integer('context_version').notNull().default(1),
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    /** Last time this merchant acknowledged re-printing their QR after a platform-wide domain change. */
+    qrDomainAckAt: timestamp('qr_domain_ack_at', { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     deletedAt: deletedAt(),

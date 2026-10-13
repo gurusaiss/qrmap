@@ -13,13 +13,21 @@ import {
 const initial: ActionState = {};
 
 /**
- * Phone + OTP is the primary route: in this market phone is the real identity
- * and email is a weak identifier. Email + password is kept for platform
- * staff, who additionally carry a mandatory 6-digit PIN as a second step
- * (docs/09) — enforced here as unavoidable, never skippable.
+ * Phone + OTP login is hidden for now — no SMS provider is configured yet
+ * (MANUAL-SETUP.md §9), so showing it would let someone try a code that can
+ * never arrive. The code underneath is untouched and fully working; flip
+ * this back to true once a real SMS driver is wired up.
+ */
+const PHONE_LOGIN_VISIBLE = false;
+
+/**
+ * Phone + OTP is the primary route long-term: in this market phone is the
+ * real identity and email is a weak identifier. Email + password is kept for
+ * platform staff, who additionally carry a mandatory 6-digit PIN as a second
+ * step (docs/09) — enforced here as unavoidable, never skippable.
  */
 export function LoginForm() {
-  const [mode, setMode] = useState<'phone' | 'password'>('phone');
+  const [mode, setMode] = useState<'phone' | 'password'>(PHONE_LOGIN_VISIBLE ? 'phone' : 'password');
   const [otpState, sendOtp] = useActionState(sendOtpAction, initial);
   const [verifyState, verify] = useActionState(verifyOtpAction, initial);
   const [passwordState, login] = useActionState(passwordLoginAction, initial);
@@ -54,9 +62,11 @@ export function LoginForm() {
             Sign in
           </Button>
         </form>
-        <Button variant="ghost" className="w-full" onClick={() => setMode('phone')}>
-          Sign in with mobile number instead
-        </Button>
+        {PHONE_LOGIN_VISIBLE && (
+          <Button variant="ghost" className="w-full" onClick={() => setMode('phone')}>
+            Sign in with mobile number instead
+          </Button>
+        )}
       </div>
     );
   }
