@@ -98,6 +98,16 @@ describe('renderMerchantPageHtml — security', () => {
     expect(html).not.toContain('<script>evil()</script>');
   });
 
+  it('escapes malicious photo alt text', () => {
+    const html = renderMerchantPageHtml(
+      baseData({
+        gallery: [{ id: 'm1', altText: `"><script>evil()</script>`, variants: { webp_800: 't/x/m1/800.webp' } }],
+      }),
+      'https://example.com',
+    );
+    expect(html).not.toContain('<script>evil()</script>');
+  });
+
   it('escapes values placed inside href attributes', () => {
     const html = renderMerchantPageHtml(
       baseData({ profile: { ...baseData().profile, websiteUrl: `https://x.com/"><script>evil()</script>` } }),
@@ -124,6 +134,37 @@ describe('renderMerchantPageHtml — content', () => {
     expect(html).toContain('Great haircuts');
     expect(html).toContain('Open now');
     expect(html).toContain('9:00 pm');
+  });
+
+  it('renders uploaded photos as a gallery with avif/webp sources', () => {
+    const html = renderMerchantPageHtml(
+      baseData({
+        gallery: [
+          { id: 'm1', altText: 'Inside the salon', variants: { avif_800: 't/x/m1/800.avif', webp_800: 't/x/m1/800.webp' } },
+          { id: 'm2', altText: null, variants: { webp_400: 't/x/m2/400.webp' } },
+        ],
+      }),
+      'https://example.com',
+    );
+    expect(html).toContain('>Photos<');
+    expect(html).toContain('/api/media/t/x/m1/800.avif');
+    expect(html).toContain('/api/media/t/x/m1/800.webp');
+    expect(html).toContain('alt="Inside the salon"');
+    expect(html).toContain('/api/media/t/x/m2/400.webp');
+  });
+
+  it('omits the photos section entirely when there is no gallery media', () => {
+    const html = renderMerchantPageHtml(baseData({ gallery: [] }), 'https://example.com');
+    expect(html).not.toContain('>Photos<');
+  });
+
+  it('skips a gallery row that somehow has no usable variant, rather than rendering a broken image', () => {
+    const html = renderMerchantPageHtml(
+      baseData({ gallery: [{ id: 'm1', altText: null, variants: {} }] }),
+      'https://example.com',
+    );
+    expect(html).not.toContain('>Photos<');
+    expect(html).not.toContain('<img');
   });
 
   it('shows only ONE hero offer even when featured', () => {

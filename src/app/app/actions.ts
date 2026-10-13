@@ -6,6 +6,7 @@ import {
   createCatalogItem,
   createOffer,
   deleteCatalogItem,
+  deleteMedia,
   deleteOffer,
   replaceHours,
   updateCatalogItem,
@@ -16,6 +17,7 @@ import { publishTenant, unpublishTenant } from '@/modules/merchants/tenants';
 import { primarySlugFor } from '@/modules/merchants/slugs';
 import { parseMoneyToMinor } from '@/modules/core/money';
 import { acknowledgeDomainChange } from '@/modules/platform/settings';
+import { ingestImage } from '@/modules/media/upload';
 
 export type FormState = { error?: string; success?: string };
 
@@ -187,6 +189,32 @@ export async function publishAction(): Promise<void> {
 export async function unpublishAction(): Promise<void> {
   const { tenantId, session } = await requireMerchant('profile:write');
   await unpublishTenant(tenantId, session.userId);
+  await revalidateMerchant(tenantId);
+}
+
+export async function uploadPhotoAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('media:write');
+    const file = formData.get('file');
+    if (!(file instanceof File) || file.size === 0) return { error: 'Choose a photo to upload.' };
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await ingestImage({
+      tenantId,
+      buffer,
+      kind: 'gallery',
+      altText: optional(formData.get('altText')),
+    });
+    await revalidateMerchant(tenantId);
+    return { success: 'Photo added to your page.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+}
+
+export async function deletePhotoAction(mediaId: string): Promise<void> {
+  const { tenantId } = await requireMerchant('media:write');
+  await deleteMedia(tenantId, mediaId);
   await revalidateMerchant(tenantId);
 }
 

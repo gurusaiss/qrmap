@@ -128,14 +128,20 @@ export async function ingestImage(args: {
   return { mediaId, variants, width: metadata.width, height: metadata.height };
 }
 
-/** Best available variant at or above the requested width. */
+/**
+ * Best available variant for the requested width: the smallest width that is
+ * at least `width`, or failing that the largest smaller one - whichever
+ * widths actually got generated for this particular image (a source image
+ * narrower than 1600px never has a 1600 variant at all).
+ */
 export function pickVariant(
   variants: Record<string, string>,
   format: 'avif' | 'webp',
   width: number,
 ): string | null {
-  const candidates = VARIANT_WIDTHS.filter((w) => w >= width);
-  for (const w of candidates.length ? candidates : [...VARIANT_WIDTHS].reverse()) {
+  const atLeast = VARIANT_WIDTHS.filter((w) => w >= width).sort((a, b) => a - b);
+  const smaller = VARIANT_WIDTHS.filter((w) => w < width).sort((a, b) => b - a);
+  for (const w of [...atLeast, ...smaller]) {
     const key = variants[`${format}_${w}`];
     if (key) return key;
   }

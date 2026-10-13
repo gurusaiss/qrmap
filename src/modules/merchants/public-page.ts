@@ -80,7 +80,7 @@ export type PublicPageData = {
   offers: PublicOffer[];
   services: PublicCatalogItem[];
   products: PublicCatalogItem[];
-  gallery: { id: string; altText: string | null }[];
+  gallery: { id: string; altText: string | null; variants: Record<string, string> }[];
   aiEnabled: boolean;
 };
 
@@ -162,7 +162,7 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
       .orderBy(asc(schema.catalogItems.sortOrder), asc(schema.catalogItems.createdAt));
 
     const galleryRows = await tx
-      .select({ id: schema.media.id, altText: schema.media.altText })
+      .select({ id: schema.media.id, altText: schema.media.altText, variants: schema.media.variants })
       .from(schema.media)
       .where(
         and(
@@ -300,7 +300,7 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
       offers: restOffers,
       services: catalogRows.filter((r) => r.kind === 'service').map(toPublicItem),
       products: catalogRows.filter((r) => r.kind === 'product').map(toPublicItem),
-      gallery: galleryRows,
+      gallery: galleryRows.map((g) => ({ ...g, variants: (g.variants ?? {}) as Record<string, string> })),
       aiEnabled: effectiveFeatureEnabled(aiConfig?.isEnabled ?? false, aiOverride ? { ...aiOverride, flagKey: 'ai_assistant' } : undefined),
     };
 

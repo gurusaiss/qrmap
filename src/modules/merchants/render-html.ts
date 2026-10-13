@@ -26,6 +26,22 @@ import { createHash } from 'node:crypto';
 import type { PublicPageData } from './public-page';
 import { formatPriceRange } from '../core/money';
 
+/**
+ * Same selection rule as media/upload.ts's pickVariant, duplicated rather
+ * than imported: that module pulls in sharp, a native dependency this
+ * hand-rolled, zero-dependency page has no reason to carry.
+ */
+const GALLERY_VARIANT_WIDTHS = [400, 800, 1600] as const;
+function pickGalleryVariant(variants: Record<string, string>, format: 'avif' | 'webp', width: number): string | null {
+  const atLeast = GALLERY_VARIANT_WIDTHS.filter((w) => w >= width).sort((a, b) => a - b);
+  const smaller = GALLERY_VARIANT_WIDTHS.filter((w) => w < width).sort((a, b) => b - a);
+  for (const w of [...atLeast, ...smaller]) {
+    const key = variants[`${format}_${w}`];
+    if (key) return key;
+  }
+  return null;
+}
+
 export function esc(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -193,6 +209,8 @@ section.card-section h2{margin:0 0 0.75rem;font-size:13px;font-weight:600;text-t
 .hours-closed{color:var(--ink-400)}
 address{font-style:normal;font-size:15px;line-height:1.6;color:var(--ink-700)}
 .chips{display:flex;flex-wrap:wrap;gap:0.5rem}
+.gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.gallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:var(--ink-100)}
 .ask-box{border:1px solid var(--ink-200);border-radius:14px;padding:0.75rem;background:#fffdf9}
 .ask-box input{width:100%;min-height:48px;border:1px solid var(--ink-200);border-radius:10px;padding:0 0.75rem;font-size:16px;background:var(--paper);transition:border-color .15s ease}
 .ask-box input:focus{outline:none;border-color:var(--accent)}
@@ -206,6 +224,24 @@ footer a{color:inherit;text-decoration-color:var(--ink-200)}
 .status-page h1{font-family:ui-serif,Georgia,serif;font-size:21px;font-weight:700}
 .status-page p{margin-top:0.75rem;font-size:15px;color:var(--ink-500);max-width:32rem}
 `;
+
+function galleryHtml(gallery: PublicPageData['gallery']): string {
+  const figures = gallery
+    .map((g) => {
+      const avif = pickGalleryVariant(g.variants, 'avif', 800);
+      const webp = pickGalleryVariant(g.variants, 'webp', 800);
+      const fallback = webp ?? avif;
+      if (!fallback) return '';
+      return `<picture>
+    ${avif ? `<source srcset="/api/media/${attr(avif)}" type="image/avif">` : ''}
+    ${webp ? `<source srcset="/api/media/${attr(webp)}" type="image/webp">` : ''}
+    <img src="/api/media/${attr(fallback)}" alt="${attr(g.altText ?? '')}" loading="lazy">
+  </picture>`;
+    })
+    .filter(Boolean)
+    .join('');
+  return figures ? `<section class="card-section"><h2>Photos</h2><div class="gallery">${figures}</div></section>` : '';
+}
 
 function catalogListHtml(items: PublicPageData['services'], wholesale: boolean): string {
   return `<ul class="catalog-list">${items
@@ -299,6 +335,8 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string): st
     ${data.profile.whatsapp ? `<a class="btn btn-secondary" data-track="cta_whatsapp" rel="noopener" href="${attr(whatsappHref(data.profile.whatsapp))}">WhatsApp</a>` : ''}
     ${directions ? `<a class="btn btn-secondary" data-track="cta_directions" rel="noopener" href="${attr(directions)}">Directions</a>` : ''}
   </nav>
+
+  ${galleryHtml(data.gallery)}
 
   ${
     data.offers.length > 0
