@@ -167,6 +167,49 @@ describe('renderMerchantPageHtml — content', () => {
     expect(html).not.toContain('<img');
   });
 
+  it('shows the hero photo when the merchant has uploaded one, and a monogram otherwise', () => {
+    const withPhoto = renderMerchantPageHtml(
+      baseData({ gallery: [{ id: 'm1', altText: null, variants: { webp_1600: 't/x/m1/1600.webp' } }] }),
+      'https://example.com',
+    );
+    expect(withPhoto).toContain('class="hero-img"');
+    expect(withPhoto).toContain('/api/media/t/x/m1/1600.webp');
+
+    const withoutPhoto = renderMerchantPageHtml(baseData({ gallery: [] }), 'https://example.com');
+    expect(withoutPhoto).not.toContain('class="hero-img"');
+    expect(withoutPhoto).toContain('hero-monogram');
+    expect(withoutPhoto).toContain('>S<'); // first letter of "Sharma Hair Salon"
+  });
+
+  it('never leaves a dead action-button cell: the row only ever holds the contact methods this merchant actually has', () => {
+    const noAddress = { googleMapsUrl: null, addressLine1: null, addressLine2: null, city: null, state: null, pincode: null };
+    const onlyCall = renderMerchantPageHtml(
+      baseData({ profile: { ...baseData().profile, ...noAddress, whatsapp: null } }),
+      'https://example.com',
+    );
+    expect(onlyCall.match(/class="btn /g)?.length).toBe(1);
+
+    const none = renderMerchantPageHtml(
+      baseData({ profile: { ...baseData().profile, ...noAddress, phone: null, whatsapp: null } }),
+      'https://example.com',
+    );
+    expect(none).not.toContain('class="actions"');
+  });
+
+  it("highlights today's row in the opening-hours list, computed in the shop's own timezone", () => {
+    // 2024-01-01 is a Monday.
+    const monday = new Date('2024-01-01T12:00:00Z');
+    const html = renderMerchantPageHtml(baseData(), 'https://example.com', monday);
+    expect(html).toContain('hours-row is-today');
+    expect(html).toContain('>Monday<span class="today-badge">Today</span><');
+
+    const tuesday = new Date('2024-01-02T12:00:00Z');
+    const htmlTuesday = renderMerchantPageHtml(baseData(), 'https://example.com', tuesday);
+    // The CSS rule for .is-today is always present in the stylesheet; what
+    // must NOT be present is the class actually applied to a row.
+    expect(htmlTuesday).not.toContain('class="hours-row is-today"');
+  });
+
   it('shows only ONE hero offer even when featured', () => {
     const html = renderMerchantPageHtml(
       baseData({

@@ -21,10 +21,19 @@
  * EVERY interpolated value that can contain merchant- or customer-supplied
  * text goes through `esc()`. This is the one thing that must never be
  * skipped when extending this file.
+ *
+ * Visual design is deliberately photo-first and icon-rich rather than relying
+ * on a loaded font or JavaScript-driven motion: everything here is a system
+ * font and a CSS transition, which keeps the page instant on a slow
+ * connection while still looking considered instead of templated. The one
+ * animation budget spent is CSS-only micro-interactions (button press,
+ * hover lift, image zoom) - nothing that requires JavaScript to render
+ * correctly, so the page is just as complete with scripting disabled.
  */
 import { createHash } from 'node:crypto';
 import type { PublicPageData } from './public-page';
 import { formatPriceRange } from '../core/money';
+import { zonedParts } from '../core/time';
 
 /**
  * Same selection rule as media/upload.ts's pickVariant, duplicated rather
@@ -99,6 +108,22 @@ function localBusinessJsonLd(data: PublicPageData, origin: string): string {
   });
 }
 
+/* -------------------------------------------------------------------------- */
+/* Icons - small inline SVGs, trusted markup (never interpolates user data)   */
+/* -------------------------------------------------------------------------- */
+
+const ICON_PHONE = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6.2 3.5 8 7l-1.7 1.3a8.6 8.6 0 0 0 5.4 5.4L13 12l3.5 1.8c.3 1.4-.1 2.6-1.2 3.1-5.6.8-11-4.6-11.8-10.2.5-1.1 1.7-1.5 3.1-1.2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+const ICON_CHAT = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10a7 7 0 1 1 3 5.7L3 17l1.2-3.3A6.96 6.96 0 0 1 3 10Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+const ICON_PIN = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 18s6-5.1 6-9.6A6 6 0 0 0 4 8.4C4 12.9 10 18 10 18Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="10" cy="8.2" r="2" stroke="currentColor" stroke-width="1.5"/></svg>`;
+const ICON_CLOCK = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M10 6v4l2.6 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const ICON_TAG = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m11 3 6 6-7 7-6-6V4h7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 7h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+const ICON_IMAGE = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="8.2" r="1.3" stroke="currentColor" stroke-width="1.4"/><path d="m4 15 4.3-4.3a1.5 1.5 0 0 1 2.1 0L13 13.3M14 11.6l.4-.4a1.5 1.5 0 0 1 2.1 0L18 12.6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+const ICON_SPARKLE = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.5 11.6 7.9 17 9.5l-5.4 1.6L10 16.5 8.4 11.1 3 9.5l5.4-1.6L10 2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+const ICON_SEND = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M17 3 2.5 9.3c-.6.3-.5 1.1.1 1.3l5 1.6 1.6 5c.2.6 1 .7 1.3.1L17 3Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M17 3 8.6 12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+const ICON_GLOBE = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M3 10h14M10 3c2 2.3 2 11.7 0 14M10 3c-2 2.3-2 11.7 0 14" stroke="currentColor" stroke-width="1.3"/></svg>`;
+const ICON_STAR = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m10 3 2 4.2 4.6.6-3.3 3.2.8 4.6L10 13.3l-4.1 2.3.8-4.6-3.3-3.2 4.6-.6L10 3Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+const ICON_CARD = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1.8" stroke="currentColor" stroke-width="1.5"/><path d="M2.5 8h15M5.5 11.5h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+
 /**
  * The entire client-side behaviour of the public page in one inline script:
  * analytics beacon, delegated CTA click tracking, and the ask-assistant
@@ -164,83 +189,143 @@ if(form){
 export const INLINE_SCRIPT_CSP_HASH = `'sha256-${createHash('sha256').update(INLINE_SCRIPT).digest('base64')}'`;
 
 /*
- * Same "Market Ledger" language as the dashboard (warm paper/ink, signage
- * terracotta, a serif for headings) but hand-written and self-contained:
- * this page has its own hard byte budget and never loads globals.css or
- * next/font, so the serif here is a system stack (Georgia/ui-serif - zero
- * network cost) rather than the dashboard's self-hosted Source Serif 4.
+ * "Market Ledger" language (warm paper/ink, signage terracotta, a serif for
+ * headings) - hand-written and self-contained, since this page never loads
+ * globals.css or next/font and has its own hard byte budget. The serif is a
+ * system stack (Georgia/ui-serif - zero network cost), and the richer feel
+ * comes from layout, color and motion rather than a downloaded typeface:
+ * a photo-led hero, a profile card that overlaps it, icon-led actions that
+ * always fill their row (1, 2 or 3 of them, never leaving a dead cell), and
+ * a tinted page background so wide screens never show a flat white gutter.
  */
 const BASE_CSS = `
-:root{--accent:#c2491d;--ink-900:#241b15;--ink-700:#4a3c32;--ink-500:#7a6b5d;--ink-400:#9c8d7e;--ink-200:#e4d9c9;--ink-100:#f0e8db;--ink-50:#fbf6ec;--success:#1f7a4d;--paper:#fdfbf6}
+:root{--accent:#c2491d;--accent-ink:#ffffff;--ink-900:#241b15;--ink-800:#32271e;--ink-700:#4a3c32;--ink-500:#7a6b5d;--ink-400:#9c8d7e;--ink-300:#c2b4a4;--ink-200:#e4d9c9;--ink-100:#f0e8db;--ink-50:#fbf6ec;--success:#1f7a4d;--paper:#fdfbf6;--card:#fffdf9;--shadow-sm:0 1px 2px rgba(36,27,21,.07);--shadow-md:0 10px 28px -10px rgba(36,27,21,.22);--radius:18px;--radius-sm:11px}
 *{box-sizing:border-box}
-body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--ink-900);background:var(--paper);font-size:16px;line-height:1.5}
-main{max-width:640px;margin:0 auto;padding-bottom:6rem}
-.hero{height:10rem;width:100%;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 16%,var(--paper)),color-mix(in srgb,var(--accent) 4%,var(--paper)))}
-.px{padding-left:1rem;padding-right:1rem}
-h1{margin:1rem 0 0;font-family:ui-serif,Georgia,"Times New Roman",serif;font-size:23px;font-weight:700;letter-spacing:-0.01em;line-height:1.2}
-.sub{margin:0.25rem 0 0;font-size:15px;color:var(--ink-500)}
-.open-row{display:flex;align-items:center;gap:0.5rem;margin:0.75rem 0 0;font-size:15px;font-weight:500}
-.dot{display:inline-block;width:10px;height:10px;border-radius:999px;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 18%,transparent)}
-.offer{margin:1rem;border-radius:14px;border:1px solid color-mix(in srgb,var(--accent) 28%,transparent);background:color-mix(in srgb,var(--accent) 6%,var(--paper));padding:1rem}
-.offer-tag{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;color:var(--accent)}
-.offer h2{margin:0.25rem 0 0;font-family:ui-serif,Georgia,serif;font-size:18px;font-weight:700}
-.actions{position:sticky;top:0;z-index:10;display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-top:1rem;padding:0.75rem 1rem;border-bottom:1px solid var(--ink-100);background:color-mix(in srgb,var(--paper) 95%,transparent);backdrop-filter:blur(4px)}
-.btn{min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;font-size:13px;font-weight:600;text-decoration:none;transition:transform .15s ease,box-shadow .15s ease,background-color .15s ease;-webkit-tap-highlight-color:transparent}
-.btn:active{transform:scale(0.96)}
-.btn-primary{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(36,27,21,.18)}
-.btn-secondary{border:1px solid var(--ink-200);color:var(--ink-900);background:var(--paper)}
-@media(hover:hover){.btn-primary:hover{background:color-mix(in srgb,var(--accent) 88%,black)}.btn-secondary:hover{border-color:var(--ink-400)}}
-section.card-section{margin-top:1.5rem;padding:0 1rem}
-section.card-section h2{margin:0 0 0.75rem;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;color:var(--ink-400)}
-.card{border:1px solid var(--ink-200);border-radius:14px;background:#fffdf9}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--ink-900);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;background:radial-gradient(1100px 480px at 88% -8%,color-mix(in srgb,var(--accent) 11%,transparent),transparent 60%),radial-gradient(900px 420px at -8% 25%,color-mix(in srgb,var(--accent) 6%,transparent),transparent 55%),var(--paper)}
+main{max-width:720px;margin:0 auto;padding-bottom:7rem;position:relative}
+.px{padding-left:1.1rem;padding-right:1.1rem}
+
+.hero{position:relative;height:clamp(200px,42vw,320px);overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 24%,var(--paper)),color-mix(in srgb,var(--accent) 5%,var(--paper)))}
+.hero-img{position:absolute;inset:0;display:block;line-height:0}
+.hero-img img{width:100%;height:100%;object-fit:cover;display:block}
+.hero-monogram{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:ui-serif,Georgia,serif;font-size:clamp(72px,18vw,140px);font-weight:700;color:color-mix(in srgb,var(--accent) 38%,var(--paper));letter-spacing:-0.02em}
+.hero-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,14,8,0) 38%,rgba(20,14,8,.74) 100%)}
+.hero-name{position:absolute;left:0;right:0;bottom:0;padding:1.15rem 1.1rem 1rem;color:#fff}
+.hero-name h1{margin:0;font-family:ui-serif,Georgia,"Times New Roman",serif;font-size:clamp(22px,5.6vw,30px);font-weight:700;letter-spacing:-0.01em;line-height:1.18;text-wrap:balance;text-shadow:0 1px 4px rgba(0,0,0,.3)}
+
+.profile-card{position:relative;margin:-24px .85rem 0;padding:1rem 1.15rem .3rem}
+.sub{margin:0;font-size:14.5px;font-weight:500;color:var(--ink-500)}
+.open-row{display:flex;align-items:center;gap:.45rem;margin-top:.6rem;font-size:14.5px;font-weight:600}
+.dot{display:inline-block;width:9px;height:9px;border-radius:999px;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 18%,transparent);flex:none}
+
+.actions{position:sticky;top:0;z-index:10;display:flex;gap:.5rem;margin-top:.9rem;padding:.7rem 1.1rem;border-bottom:1px solid var(--ink-100);background:color-mix(in srgb,var(--paper) 90%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.btn{flex:1;min-height:50px;display:flex;align-items:center;justify-content:center;gap:.4rem;border-radius:13px;font-size:13.5px;font-weight:700;text-decoration:none;transition:transform .15s ease,box-shadow .2s ease,background-color .15s ease,border-color .15s ease,color .15s ease;-webkit-tap-highlight-color:transparent}
+.btn svg{width:17px;height:17px;flex:none}
+.btn:active{transform:scale(.95)}
+.btn-primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--shadow-sm)}
+.btn-secondary{border:1.5px solid var(--ink-200);color:var(--ink-900);background:var(--card)}
+@media(hover:hover){.btn-primary:hover{box-shadow:0 8px 18px -6px color-mix(in srgb,var(--accent) 65%,transparent);transform:translateY(-1px)}.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}}
+
+.offer{position:relative;margin:1.1rem 1.1rem 0;border-radius:var(--radius);overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 11%,var(--card)),var(--card));border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);padding:1.1rem 1.15rem 1.15rem 1.35rem;box-shadow:var(--shadow-sm)}
+.offer::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--accent)}
+.offer-tag{display:inline-flex;align-items:center;gap:.35rem;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent)}
+.offer-tag svg{width:13px;height:13px}
+.offer h2{margin:.4rem 0 0;font-family:ui-serif,Georgia,serif;font-size:19px;font-weight:700;line-height:1.32;text-wrap:balance}
+.coupon{margin-top:.65rem;display:inline-flex;align-items:center;border:1.5px dashed color-mix(in srgb,var(--accent) 55%,var(--ink-300));border-radius:8px;padding:4px 11px;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:14.5px;font-weight:600;letter-spacing:.02em}
+
+section.card-section{margin-top:1.85rem;padding:0 1.1rem}
+section.card-section>h2{display:flex;align-items:center;gap:.4rem;margin:0 0 .8rem;font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-400)}
+section.card-section>h2 svg{width:14px;height:14px;opacity:.8;flex:none}
+.card{border:1px solid var(--ink-200);border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow-sm);overflow:hidden}
 .list li{list-style:none}
+
 .catalog-list{margin:0;padding:0}
-.catalog-list li{display:flex;justify-content:space-between;gap:1rem;padding:0.75rem;border-bottom:1px solid var(--ink-100);transition:background-color .15s ease}
+.catalog-list li{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 1rem;border-bottom:1px solid var(--ink-100);transition:background-color .15s ease}
 .catalog-list li:last-child{border-bottom:none}
 @media(hover:hover){.catalog-list li:hover{background:var(--ink-50)}}
-.catalog-name{font-weight:500}
-.catalog-desc{margin:0.15rem 0 0;font-size:14px;color:var(--ink-500)}
-.catalog-meta{margin:0.15rem 0 0;font-size:13px;color:var(--ink-400)}
-.price{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
-.offers-more li{padding:0.75rem;border-radius:14px;border:1px solid var(--ink-200);margin-bottom:0.75rem;background:#fffdf9}
-.hours-row{display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--ink-100);font-size:15px}
+.catalog-name{font-weight:600;font-size:15.5px}
+.catalog-desc{margin:.2rem 0 0;font-size:13.5px;color:var(--ink-500);line-height:1.5}
+.catalog-meta{display:inline-block;margin-top:.3rem;font-size:11.5px;font-weight:600;letter-spacing:.01em;color:var(--ink-500);background:var(--ink-100);padding:2px 8px;border-radius:999px}
+.price{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;flex:none}
+
+.offers-more{margin:0;padding:0}
+.offers-more li{padding:.9rem 1rem;border-radius:var(--radius-sm);border:1px solid var(--ink-200);margin-bottom:.6rem;background:var(--card);transition:border-color .15s ease}
+.offers-more li:last-child{margin-bottom:0}
+@media(hover:hover){.offers-more li:hover{border-color:var(--accent)}}
+
+.hours-row{display:flex;justify-content:space-between;align-items:center;padding:.6rem 0;border-bottom:1px solid var(--ink-100);font-size:14.5px}
 .hours-row:last-child{border-bottom:none}
-.hours-today{color:var(--ink-700)}
-.hours-closed{color:var(--ink-400)}
-address{font-style:normal;font-size:15px;line-height:1.6;color:var(--ink-700)}
-.chips{display:flex;flex-wrap:wrap;gap:0.5rem}
-.gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.gallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:var(--ink-100)}
-.ask-box{border:1px solid var(--ink-200);border-radius:14px;padding:0.75rem;background:#fffdf9}
-.ask-box input{width:100%;min-height:48px;border:1px solid var(--ink-200);border-radius:10px;padding:0 0.75rem;font-size:16px;background:var(--paper);transition:border-color .15s ease}
-.ask-box input:focus{outline:none;border-color:var(--accent)}
-.ask-box button{width:100%;min-height:48px;margin-top:0.5rem;border:none;border-radius:10px;background:var(--ink-900);color:#fff;font-weight:600;font-size:15px;transition:transform .15s ease}
-.ask-box button:active{transform:scale(0.98)}
-.ask-answer{margin-top:0.75rem;border-radius:10px;background:var(--ink-50);padding:0.75rem;font-size:15px;line-height:1.5}
-.ask-hint{margin-top:0.5rem;font-size:12px;color:var(--ink-400)}
-footer{margin-top:2.5rem;padding:0 1rem 2rem;text-align:center;font-size:13px;color:var(--ink-400)}
+.hours-row.is-today{font-weight:700;color:var(--ink-900)}
+.today-badge{display:inline-flex;margin-left:.45rem;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-ink);background:var(--accent);padding:2px 7px;border-radius:999px;vertical-align:middle}
+.hours-closed{color:var(--ink-400);font-weight:400}
+
+address{font-style:normal;font-size:14.5px;line-height:1.65;color:var(--ink-700)}
+
+.chips{display:flex;flex-wrap:wrap;gap:.55rem}
+.chip-btn{display:inline-flex;align-items:center;gap:.4rem;padding:0 1rem;height:42px;border-radius:999px;border:1.5px solid var(--ink-200);background:var(--card);font-size:13.5px;font-weight:600;color:var(--ink-700);text-decoration:none;transition:border-color .15s ease,color .15s ease,transform .15s ease}
+.chip-btn svg{width:15px;height:15px;flex:none}
+.chip-btn:active{transform:scale(.96)}
+@media(hover:hover){.chip-btn:hover{border-color:var(--accent);color:var(--accent)}}
+
+.gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.gallery picture{display:block;position:relative;aspect-ratio:1;overflow:hidden;border-radius:12px;background:var(--ink-100)}
+.gallery img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s ease}
+@media(hover:hover){.gallery picture:hover img{transform:scale(1.08)}}
+
+.ask-box{border:1px solid var(--ink-200);border-radius:var(--radius);padding:.95rem;background:var(--card);box-shadow:var(--shadow-sm)}
+.ask-row{display:flex;gap:.5rem}
+.ask-box input{flex:1;min-width:0;min-height:48px;border:1.5px solid var(--ink-200);border-radius:var(--radius-sm);padding:0 .85rem;font-size:16px;background:var(--paper);transition:border-color .15s ease,box-shadow .15s ease}
+.ask-box input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+.ask-box button{flex:none;min-height:48px;display:inline-flex;align-items:center;gap:.35rem;padding:0 1.15rem;border:none;border-radius:var(--radius-sm);background:var(--ink-900);color:#fff;font-weight:700;font-size:14.5px;transition:transform .15s ease,background-color .15s ease}
+.ask-box button svg{width:15px;height:15px}
+.ask-box button:active{transform:scale(.96)}
+@media(hover:hover){.ask-box button:hover{background:var(--accent)}}
+.ask-answer{margin-top:.8rem;border-radius:var(--radius-sm);background:var(--ink-50);padding:.85rem;font-size:14.5px;line-height:1.55}
+.ask-hint{margin-top:.6rem;font-size:11.5px;color:var(--ink-400)}
+
+footer{margin-top:3rem;padding:1.6rem 1.1rem 2.5rem;text-align:center;font-size:12.5px;color:var(--ink-400);border-top:1px solid var(--ink-100)}
 footer a{color:inherit;text-decoration-color:var(--ink-200)}
-.status-page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 1.5rem}
-.status-page h1{font-family:ui-serif,Georgia,serif;font-size:21px;font-weight:700}
-.status-page p{margin-top:0.75rem;font-size:15px;color:var(--ink-500);max-width:32rem}
+footer .brand{display:inline-flex;align-items:center;gap:.4rem;margin-top:.65rem;font-weight:600;color:var(--ink-500)}
+footer .brand svg{width:13px;height:13px}
+
+@media(min-width:640px){.hero{border-radius:0 0 28px 28px}}
+@media(prefers-reduced-motion:reduce){*{transition-duration:.001ms!important;animation:none!important}}
+
+.status-page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 1.5rem;background:radial-gradient(900px 500px at 50% -10%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 60%),var(--paper)}
+.status-page h1{font-family:ui-serif,Georgia,serif;font-size:22px;font-weight:700}
+.status-page p{margin-top:.75rem;font-size:15px;color:var(--ink-500);max-width:32rem}
 `;
+
+function pictureHtml(variants: Record<string, string>, width: number, altText: string, imgAttrs: string): string | null {
+  const avif = pickGalleryVariant(variants, 'avif', width);
+  const webp = pickGalleryVariant(variants, 'webp', width);
+  const fallback = webp ?? avif;
+  if (!fallback) return null;
+  return `<picture>
+    ${avif ? `<source srcset="/api/media/${attr(avif)}" type="image/avif">` : ''}
+    ${webp ? `<source srcset="/api/media/${attr(webp)}" type="image/webp">` : ''}
+    <img src="/api/media/${attr(fallback)}" alt="${attr(altText)}" ${imgAttrs}>
+  </picture>`;
+}
+
+/** First gallery photo usable as the hero background; null if none exists or decodes. */
+function heroPictureHtml(gallery: PublicPageData['gallery']): string | null {
+  for (const g of gallery) {
+    const picture = pictureHtml(g.variants, 1600, '', 'loading="eager" fetchpriority="high"');
+    if (picture) return picture.replace('<picture>', '<picture class="hero-img">');
+  }
+  return null;
+}
 
 function galleryHtml(gallery: PublicPageData['gallery']): string {
   const figures = gallery
-    .map((g) => {
-      const avif = pickGalleryVariant(g.variants, 'avif', 800);
-      const webp = pickGalleryVariant(g.variants, 'webp', 800);
-      const fallback = webp ?? avif;
-      if (!fallback) return '';
-      return `<picture>
-    ${avif ? `<source srcset="/api/media/${attr(avif)}" type="image/avif">` : ''}
-    ${webp ? `<source srcset="/api/media/${attr(webp)}" type="image/webp">` : ''}
-    <img src="/api/media/${attr(fallback)}" alt="${attr(g.altText ?? '')}" loading="lazy">
-  </picture>`;
-    })
-    .filter(Boolean)
+    .map((g) => pictureHtml(g.variants, 800, g.altText ?? '', 'loading="lazy"'))
+    .filter((p): p is string => p !== null)
     .join('');
-  return figures ? `<section class="card-section"><h2>Photos</h2><div class="gallery">${figures}</div></section>` : '';
+  return figures
+    ? `<section class="card-section"><h2>${ICON_IMAGE}Photos</h2><div class="gallery">${figures}</div></section>`
+    : '';
 }
 
 function catalogListHtml(items: PublicPageData['services'], wholesale: boolean): string {
@@ -257,7 +342,7 @@ function catalogListHtml(items: PublicPageData['services'], wholesale: boolean):
   <div>
     <p class="catalog-name">${esc(item.name)}</p>
     ${item.description ? `<p class="catalog-desc">${esc(item.description)}</p>` : ''}
-    ${meta ? `<p class="catalog-meta">${esc(meta)}</p>` : ''}
+    ${meta ? `<span class="catalog-meta">${esc(meta)}</span>` : ''}
   </div>
   <span class="price">${esc(formatPriceRange(item.priceMinor, item.priceMaxMinor, item.priceUnit))}</span>
 </li>`;
@@ -265,7 +350,7 @@ function catalogListHtml(items: PublicPageData['services'], wholesale: boolean):
     .join('')}</ul>`;
 }
 
-export function renderMerchantPageHtml(data: PublicPageData, origin: string): string {
+export function renderMerchantPageHtml(data: PublicPageData, origin: string, now: Date = new Date()): string {
   const accent = data.profile.accentColor && /^#[0-9a-fA-F]{6}$/.test(data.profile.accentColor) ? data.profile.accentColor : '#c2491d';
   const directions = directionsHref(data);
   const description = esc(
@@ -275,10 +360,26 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string): st
   );
   const pageUrl = `${origin}/m/${data.slug}`;
   const title = esc(`${data.displayName}${data.profile.city ? ` · ${data.profile.city}` : ''}`);
+  const todayDow = zonedParts(now, data.timezone).weekday;
 
   const socials = Object.entries(data.profile.socials)
-    .map(([name, url]) => `<a class="btn btn-secondary" data-track="cta_social" rel="noopener" href="${attr(url)}">${esc(name)}</a>`)
+    .map(([name, url]) => `<a class="chip-btn" data-track="cta_social" rel="noopener" href="${attr(url)}">${ICON_GLOBE}${esc(name)}</a>`)
     .join('');
+
+  const hero = heroPictureHtml(data.gallery);
+  const monogram = esc((data.displayName.trim().charAt(0) || 'S').toUpperCase());
+
+  const actionButtons = [
+    data.profile.phone
+      ? `<a class="btn btn-primary" data-track="cta_call" href="tel:${attr(data.profile.phone)}">${ICON_PHONE}<span>Call</span></a>`
+      : null,
+    data.profile.whatsapp
+      ? `<a class="btn btn-secondary" data-track="cta_whatsapp" rel="noopener" href="${attr(whatsappHref(data.profile.whatsapp))}">${ICON_CHAT}<span>WhatsApp</span></a>`
+      : null,
+    directions
+      ? `<a class="btn btn-secondary" data-track="cta_directions" rel="noopener" href="${attr(directions)}">${ICON_PIN}<span>Directions</span></a>`
+      : null,
+  ].filter((b): b is string => b !== null);
 
   return `<!doctype html>
 <html lang="en-IN">
@@ -298,55 +399,53 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string): st
 </head>
 <body>
 <main id="mp-root" data-tenant-id="${attr(data.tenantId)}" data-slug="${attr(data.slug)}" style="--accent:${accent}">
-  <header>
-    <div class="hero" aria-hidden="true"></div>
-    <div class="px">
-      <h1>${esc(data.displayName)}</h1>
-      <p class="sub">${esc([data.categoryName, data.profile.city].filter(Boolean).join(' · '))}</p>
-      <p class="open-row">
-        <span class="dot" style="background:${data.openState.open ? 'var(--success)' : 'var(--ink-400)'}" aria-hidden="true"></span>
-        ${
-          data.openState.open
-            ? `<span style="color:var(--success)">Open now${data.openState.closingSoon ? ` · closes ${esc(data.openState.closesAt)}` : ` · until ${esc(data.openState.closesAt)}`}</span>`
-            : `<span style="color:var(--ink-500)">Closed${
-                !data.openState.open && data.openState.reason === 'holiday' && data.openState.holidayLabel
-                  ? ` · ${esc(data.openState.holidayLabel)}`
-                  : ''
-              }${!data.openState.open && data.openState.opensNext ? ` · ${esc(data.openState.opensNext)}` : ''}</span>`
-        }
-      </p>
-    </div>
-  </header>
+  <div class="hero">
+    ${hero ?? `<div class="hero-monogram" aria-hidden="true">${monogram}</div>`}
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="hero-name"><h1>${esc(data.displayName)}</h1></div>
+  </div>
+
+  <div class="profile-card px">
+    <p class="sub">${esc([data.categoryName, data.profile.city].filter(Boolean).join(' · '))}</p>
+    <p class="open-row">
+      <span class="dot" style="background:${data.openState.open ? 'var(--success)' : 'var(--ink-400)'}" aria-hidden="true"></span>
+      ${
+        data.openState.open
+          ? `<span style="color:var(--success)">Open now${data.openState.closingSoon ? ` · closes ${esc(data.openState.closesAt)}` : ` · until ${esc(data.openState.closesAt)}`}</span>`
+          : `<span style="color:var(--ink-500)">Closed${
+              !data.openState.open && data.openState.reason === 'holiday' && data.openState.holidayLabel
+                ? ` · ${esc(data.openState.holidayLabel)}`
+                : ''
+            }${!data.openState.open && data.openState.opensNext ? ` · ${esc(data.openState.opensNext)}` : ''}</span>`
+      }
+    </p>
+  </div>
+
+  ${actionButtons.length ? `<nav class="actions" aria-label="Contact this business">${actionButtons.join('')}</nav>` : ''}
 
   ${
     data.heroOffer
       ? `<section class="offer">
-    <p class="offer-tag">Current offer</p>
+    <p class="offer-tag">${ICON_TAG}Current offer</p>
     <h2>${esc(data.heroOffer.title)}</h2>
-    ${data.heroOffer.description ? `<p style="margin:0.25rem 0 0;font-size:15px;color:var(--ink-700)">${esc(data.heroOffer.description)}</p>` : ''}
-    <p style="margin-top:0.5rem;font-size:13px;color:var(--ink-500)">${esc(data.heroOffer.validity)}</p>
-    ${data.heroOffer.couponCode ? `<p style="margin-top:0.5rem;display:inline-block;border:1px dashed var(--ink-400);border-radius:6px;padding:2px 8px;font-family:monospace;font-size:15px">${esc(data.heroOffer.couponCode)}</p>` : ''}
+    ${data.heroOffer.description ? `<p style="margin:.3rem 0 0;font-size:15px;color:var(--ink-700)">${esc(data.heroOffer.description)}</p>` : ''}
+    <p style="margin-top:.55rem;font-size:13px;color:var(--ink-500)">${esc(data.heroOffer.validity)}</p>
+    ${data.heroOffer.couponCode ? `<p class="coupon">${esc(data.heroOffer.couponCode)}</p>` : ''}
   </section>`
       : ''
   }
-
-  <nav class="actions" aria-label="Contact this business">
-    ${data.profile.phone ? `<a class="btn btn-primary" data-track="cta_call" href="tel:${attr(data.profile.phone)}">Call</a>` : ''}
-    ${data.profile.whatsapp ? `<a class="btn btn-secondary" data-track="cta_whatsapp" rel="noopener" href="${attr(whatsappHref(data.profile.whatsapp))}">WhatsApp</a>` : ''}
-    ${directions ? `<a class="btn btn-secondary" data-track="cta_directions" rel="noopener" href="${attr(directions)}">Directions</a>` : ''}
-  </nav>
 
   ${galleryHtml(data.gallery)}
 
   ${
     data.offers.length > 0
-      ? `<section class="card-section"><h2>More offers</h2><ul class="list offers-more">${data.offers
+      ? `<section class="card-section"><h2>${ICON_TAG}More offers</h2><ul class="list offers-more">${data.offers
           .map(
             (o) =>
               `<li>
-    <h3 style="margin:0;font-weight:600">${esc(o.title)}</h3>
-    ${o.description ? `<p style="margin:0.25rem 0 0;font-size:15px;color:var(--ink-700)">${esc(o.description)}</p>` : ''}
-    <p style="margin:0.25rem 0 0;font-size:13px;color:var(--ink-500)">${esc(o.validity)}</p>
+    <h3 style="margin:0;font-weight:600;font-size:15.5px">${esc(o.title)}</h3>
+    ${o.description ? `<p style="margin:.25rem 0 0;font-size:14.5px;color:var(--ink-700)">${esc(o.description)}</p>` : ''}
+    <p style="margin:.3rem 0 0;font-size:12.5px;color:var(--ink-500)">${esc(o.validity)}</p>
   </li>`,
           )
           .join('')}</ul></section>`
@@ -367,32 +466,37 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string): st
 
   ${
     data.profile.description
-      ? `<section class="card-section"><h2>About</h2><p style="font-size:15px;line-height:1.6;color:var(--ink-700)">${esc(data.profile.description)}</p></section>`
+      ? `<section class="card-section"><h2>About</h2><p style="font-size:15px;line-height:1.65;color:var(--ink-700)">${esc(data.profile.description)}</p></section>`
       : ''
   }
 
   <section class="card-section">
-    <h2>Opening hours</h2>
-    <ul class="list" style="margin:0;padding:0">
-      ${data.week
-        .map(
-          (day) =>
-            `<li class="hours-row"><span>${esc(day.day)}</span><span class="${day.windows.length ? '' : 'hours-closed'}" style="font-weight:${day.windows.length ? 500 : 400}">${day.windows.length ? esc(day.windows.join(', ')) : 'Closed'}</span></li>`,
-        )
-        .join('')}
-    </ul>
+    <h2>${ICON_CLOCK}Opening hours</h2>
+    <div class="card" style="padding:0 1rem">
+      <ul class="list" style="margin:0;padding:0">
+        ${data.week
+          .map((day) => {
+            const isToday = day.dayOfWeek === todayDow;
+            const closed = day.windows.length === 0;
+            return `<li class="hours-row${isToday ? ' is-today' : ''}"><span>${esc(day.day)}${isToday ? '<span class="today-badge">Today</span>' : ''}</span><span class="${closed ? 'hours-closed' : ''}">${closed ? 'Closed' : esc(day.windows.join(', '))}</span></li>`;
+          })
+          .join('')}
+      </ul>
+    </div>
   </section>
 
   ${
     data.profile.addressLine1 || data.profile.city
       ? `<section class="card-section">
-    <h2>Find us</h2>
-    <address>${esc(
-      [data.profile.addressLine1, data.profile.addressLine2, data.profile.city, data.profile.state, data.profile.pincode]
-        .filter(Boolean)
-        .join(', '),
-    )}</address>
-    ${directions ? `<a class="btn btn-secondary" data-track="cta_directions" rel="noopener" href="${attr(directions)}" style="margin-top:0.75rem;display:inline-flex;padding:0 1rem">Open in Maps</a>` : ''}
+    <h2>${ICON_PIN}Find us</h2>
+    <div class="card" style="padding:1rem">
+      <address>${esc(
+        [data.profile.addressLine1, data.profile.addressLine2, data.profile.city, data.profile.state, data.profile.pincode]
+          .filter(Boolean)
+          .join(', '),
+      )}</address>
+      ${directions ? `<a class="btn btn-secondary" data-track="cta_directions" rel="noopener" href="${attr(directions)}" style="margin-top:.85rem;display:inline-flex;padding:0 1.1rem;flex:none">${ICON_PIN}Open in Maps</a>` : ''}
+    </div>
   </section>`
       : ''
   }
@@ -400,11 +504,13 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string): st
   ${
     data.aiEnabled
       ? `<section class="card-section">
-    <h2>Ask a question</h2>
+    <h2>${ICON_SPARKLE}Ask a question</h2>
     <form id="ask-form" class="ask-box">
       <label for="ask-input" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Ask ${esc(data.displayName)} a question</label>
-      <input id="ask-input" maxlength="300" placeholder="What time do you open?">
-      <button id="ask-submit" type="submit">Ask</button>
+      <div class="ask-row">
+        <input id="ask-input" maxlength="300" placeholder="What time do you open?">
+        <button id="ask-submit" type="submit">${ICON_SEND}Ask</button>
+      </div>
       <p id="ask-answer" class="ask-answer" hidden role="status"></p>
       <p class="ask-hint">Answers come only from this shop's own information. Please call to confirm anything important.</p>
     </form>
@@ -415,16 +521,16 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string): st
   <section class="card-section">
     <h2>More</h2>
     <div class="chips">
-      ${data.profile.websiteUrl ? `<a class="btn btn-secondary" data-track="cta_website" rel="noopener" href="${attr(data.profile.websiteUrl)}" style="padding:0 1rem;display:inline-flex">Website</a>` : ''}
-      ${data.profile.gbpReviewUrl ? `<a class="btn btn-secondary" data-track="cta_social" rel="noopener" href="${attr(data.profile.gbpReviewUrl)}" style="padding:0 1rem;display:inline-flex">Leave a review</a>` : ''}
+      ${data.profile.websiteUrl ? `<a class="chip-btn" data-track="cta_website" rel="noopener" href="${attr(data.profile.websiteUrl)}">${ICON_GLOBE}Website</a>` : ''}
+      ${data.profile.gbpReviewUrl ? `<a class="chip-btn" data-track="cta_social" rel="noopener" href="${attr(data.profile.gbpReviewUrl)}">${ICON_STAR}Leave a review</a>` : ''}
       ${socials}
-      <a class="btn btn-secondary" data-track="cta_save_contact" href="/m/${attr(data.slug)}/contact.vcf" style="padding:0 1rem;display:inline-flex">Save contact</a>
+      <a class="chip-btn" data-track="cta_save_contact" href="/m/${attr(data.slug)}/contact.vcf">${ICON_CARD}Save contact</a>
     </div>
   </section>
 
   <footer>
-    <p>${esc(data.displayName)} · <span style="font-family:monospace">/m/${esc(data.slug)}</span></p>
-    <p style="margin-top:0.5rem"><a href="/" style="text-decoration:underline">Get a page like this for your shop</a></p>
+    <p>${esc(data.displayName)} · <span style="font-family:ui-monospace,monospace">/m/${esc(data.slug)}</span></p>
+    <a class="brand" href="/">${ICON_SPARKLE}Get a page like this for your shop</a>
   </footer>
 </main>
 <script>${INLINE_SCRIPT}</script>
@@ -480,7 +586,7 @@ export function renderNotFoundHtml(): string {
 <div class="status-page">
   <h1>We couldn't find that business</h1>
   <p>The address you scanned or typed does not match a business on this platform. Please check the code and try again.</p>
-  <a href="/" class="btn btn-secondary" style="margin-top:1.5rem;padding:0 1.25rem;display:inline-flex">Go to the home page</a>
+  <a href="/" class="btn btn-secondary" style="margin-top:1.5rem;padding:0 1.25rem;display:inline-flex;flex:none">Go to the home page</a>
 </div>
 </body>
 </html>`;
