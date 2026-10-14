@@ -269,10 +269,10 @@ main{max-width:720px;margin:0 auto;padding-bottom:calc(7rem + env(safe-area-inse
 .hero-img img{width:100%;height:100%;object-fit:cover;display:block}
 .hero-monogram{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:ui-serif,Georgia,serif;font-size:clamp(72px,18vw,140px);font-weight:700;color:color-mix(in srgb,var(--accent) 38%,var(--paper));letter-spacing:-0.02em}
 .hero-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,7,4,0) 30%,rgba(10,7,4,.58) 70%,rgba(10,7,4,.88) 100%)}
-.hero-name{position:absolute;left:0;right:0;bottom:0;padding:1.15rem 1.1rem 1rem;color:#fff}
+.hero-name{position:absolute;left:0;right:0;bottom:0;padding:1.15rem 1.1rem 2rem;color:#fff}
 .hero-name h1{margin:0;font-family:ui-serif,Georgia,"Times New Roman",serif;font-size:clamp(22px,5.6vw,30px);font-weight:700;letter-spacing:-0.01em;line-height:1.18;text-wrap:balance;text-shadow:0 1px 10px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.6)}
 
-.profile-card{position:relative;margin:-24px .85rem 0;padding:1rem 1.15rem .3rem}
+.profile-card{position:relative;margin:-24px .85rem 0;padding:1rem 1.15rem .3rem;background:var(--paper);border-radius:var(--radius) var(--radius) 0 0;box-shadow:0 -8px 20px -10px rgba(36,27,21,.18)}
 .sub{margin:0;font-size:14.5px;font-weight:500;color:var(--ink-500)}
 .open-row{display:flex;align-items:center;gap:.45rem;margin-top:.6rem;font-size:14.5px;font-weight:600}
 .dot{display:inline-block;width:9px;height:9px;border-radius:999px;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 18%,transparent);flex:none}

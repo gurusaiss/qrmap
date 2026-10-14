@@ -505,6 +505,50 @@ describe('renderMerchantPageHtml — content', () => {
       expect(contrast(accent, accentInk)).toBeGreaterThanOrEqual(4.5);
     });
   });
+
+  describe('hero / profile card seam', () => {
+    // Regression: .profile-card overlaps the hero photo by a negative
+    // top margin (it's meant to look like a card floating over the photo),
+    // but it had no background at all. Because it paints after the hero in
+    // document order, that transparent overlap still covered whatever was
+    // underneath it - cutting the bottom of the photo and, since the shop
+    // name's own bottom padding was smaller than the overlap, hiding part of
+    // the merchant's own name on their customer-facing page.
+    function cssRule(html: string, selector: string): string {
+      const style = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? '';
+      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const m = new RegExp(`${escaped}\\{([^}]*)\\}`).exec(style);
+      if (!m || !m[1]) throw new Error(`rule ${selector} not found`);
+      return m[1];
+    }
+
+    function pxValue(declarations: string, property: string, fallbackRem = 16): number {
+      const m = new RegExp(`${property}:[^;]*?(-?[\\d.]+)(rem|px)`).exec(declarations);
+      if (!m || !m[1] || !m[2]) throw new Error(`${property} not found in "${declarations}"`);
+      const n = Number(m[1]);
+      return m[2] === 'rem' ? n * fallbackRem : n;
+    }
+
+    it('gives the overlapping profile card an opaque background, so it never shows through to whatever is underneath', () => {
+      const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+      const rule = cssRule(html, '.profile-card');
+      expect(rule).toMatch(/background:/);
+    });
+
+    it('keeps the shop name clear of the profile card\'s overlap, however many lines it wraps to', () => {
+      const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+      const cardMargin = pxValue(cssRule(html, '.profile-card'), 'margin');
+      const heroNamePadding = cssRule(html, '.hero-name').match(/padding:([^;]+)/)?.[1] ?? '';
+      // padding shorthand's last value is padding-bottom.
+      const bottomPaddingToken = heroNamePadding.trim().split(/\s+/).pop() ?? '0';
+      const bottomPaddingPx = bottomPaddingToken.endsWith('rem')
+        ? Number(bottomPaddingToken.replace('rem', '')) * 16
+        : Number(bottomPaddingToken.replace('px', ''));
+      // cardMargin is negative (an upward pull); its magnitude is how much of
+      // the hero the card overlaps.
+      expect(bottomPaddingPx).toBeGreaterThanOrEqual(Math.abs(cardMargin));
+    });
+  });
 });
 
 describe('CSP hash', () => {
