@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireMerchant } from '@/modules/auth/session-server';
 import { listCatalog } from '@/modules/merchants/content';
 import { EmptyState, PageHeader } from '@/components/ui';
@@ -16,6 +17,20 @@ export default async function CatalogPage() {
         title="Menu & prices"
         description="Add what you sell. Customers see this the moment you save."
       />
+
+      <Link
+        href="/app/catalog/import"
+        className="card card-interactive mb-4 flex items-center justify-between gap-3 p-4"
+      >
+        <div>
+          <p className="font-medium">Already have a price list?</p>
+          <p className="text-[13px] text-ink-500">
+            Upload a spreadsheet, PDF, Word doc, or a photo — we&apos;ll fill this in for you.
+          </p>
+        </div>
+        <span className="shrink-0 text-ink-400">→</span>
+      </Link>
+
       <CatalogForm />
 
       <div className="mt-6 space-y-3">
