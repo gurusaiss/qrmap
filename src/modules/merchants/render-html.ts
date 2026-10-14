@@ -229,6 +229,9 @@ main{max-width:720px;margin:0 auto;padding-bottom:7rem;position:relative}
 
 .offer{position:relative;margin:1.1rem 1.1rem 0;border-radius:var(--radius);overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 11%,var(--card)),var(--card));border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);padding:1.1rem 1.15rem 1.15rem 1.35rem;box-shadow:var(--shadow-sm)}
 .offer::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--accent)}
+.offer-body{display:flex;justify-content:space-between;gap:.9rem;align-items:flex-start}
+.offer-thumb{display:block;flex:none;width:72px;height:72px;border-radius:12px;overflow:hidden;background:var(--ink-100)}
+.offer-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .offer-tag{display:inline-flex;align-items:center;gap:.35rem;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent)}
 .offer-tag svg{width:13px;height:13px}
 .offer h2{margin:.4rem 0 0;font-family:ui-serif,Georgia,serif;font-size:19px;font-weight:700;line-height:1.32;text-wrap:balance}
@@ -244,6 +247,10 @@ section.card-section>h2 svg{width:14px;height:14px;opacity:.8;flex:none}
 .catalog-list li{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 1rem;border-bottom:1px solid var(--ink-100);transition:background-color .15s ease}
 .catalog-list li:last-child{border-bottom:none}
 @media(hover:hover){.catalog-list li:hover{background:var(--ink-50)}}
+.row-main{display:flex;gap:.7rem;align-items:flex-start;min-width:0}
+.min-w-0{min-width:0}
+.catalog-thumb{display:block;flex:none;width:52px;height:52px;border-radius:11px;overflow:hidden;background:var(--ink-100)}
+.catalog-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .catalog-name{font-weight:600;font-size:15.5px}
 .catalog-desc{margin:.2rem 0 0;font-size:13.5px;color:var(--ink-500);line-height:1.5}
 .catalog-meta{display:inline-block;margin-top:.3rem;font-size:11.5px;font-weight:600;letter-spacing:.01em;color:var(--ink-500);background:var(--ink-100);padding:2px 8px;border-radius:999px}
@@ -338,11 +345,15 @@ function catalogListHtml(items: PublicPageData['services'], wholesale: boolean):
       ]
         .filter(Boolean)
         .join(' · ');
+      const thumb = item.photo ? pictureHtml(item.photo, 160, '', 'loading="lazy"') : null;
       return `<li>
-  <div>
-    <p class="catalog-name">${esc(item.name)}</p>
-    ${item.description ? `<p class="catalog-desc">${esc(item.description)}</p>` : ''}
-    ${meta ? `<span class="catalog-meta">${esc(meta)}</span>` : ''}
+  <div class="row-main">
+    ${thumb ? thumb.replace('<picture>', '<picture class="catalog-thumb">') : ''}
+    <div class="min-w-0">
+      <p class="catalog-name">${esc(item.name)}</p>
+      ${item.description ? `<p class="catalog-desc">${esc(item.description)}</p>` : ''}
+      ${meta ? `<span class="catalog-meta">${esc(meta)}</span>` : ''}
+    </div>
   </div>
   <span class="price">${esc(formatPriceRange(item.priceMinor, item.priceMaxMinor, item.priceUnit))}</span>
 </li>`;
@@ -425,13 +436,21 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string, now
 
   ${
     data.heroOffer
-      ? `<section class="offer">
-    <p class="offer-tag">${ICON_TAG}Current offer</p>
-    <h2>${esc(data.heroOffer.title)}</h2>
-    ${data.heroOffer.description ? `<p style="margin:.3rem 0 0;font-size:15px;color:var(--ink-700)">${esc(data.heroOffer.description)}</p>` : ''}
-    <p style="margin-top:.55rem;font-size:13px;color:var(--ink-500)">${esc(data.heroOffer.validity)}</p>
-    ${data.heroOffer.couponCode ? `<p class="coupon">${esc(data.heroOffer.couponCode)}</p>` : ''}
-  </section>`
+      ? (() => {
+          const thumb = data.heroOffer.photo ? pictureHtml(data.heroOffer.photo, 200, '', 'loading="lazy"') : null;
+          return `<section class="offer">
+    <div class="offer-body">
+      <div class="min-w-0">
+        <p class="offer-tag">${ICON_TAG}Current offer</p>
+        <h2>${esc(data.heroOffer.title)}</h2>
+        ${data.heroOffer.description ? `<p style="margin:.3rem 0 0;font-size:15px;color:var(--ink-700)">${esc(data.heroOffer.description)}</p>` : ''}
+        <p style="margin-top:.55rem;font-size:13px;color:var(--ink-500)">${esc(data.heroOffer.validity)}</p>
+        ${data.heroOffer.couponCode ? `<p class="coupon">${esc(data.heroOffer.couponCode)}</p>` : ''}
+      </div>
+      ${thumb ? thumb.replace('<picture>', '<picture class="offer-thumb">') : ''}
+    </div>
+  </section>`;
+        })()
       : ''
   }
 
@@ -440,14 +459,19 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string, now
   ${
     data.offers.length > 0
       ? `<section class="card-section"><h2>${ICON_TAG}More offers</h2><ul class="list offers-more">${data.offers
-          .map(
-            (o) =>
-              `<li>
-    <h3 style="margin:0;font-weight:600;font-size:15.5px">${esc(o.title)}</h3>
-    ${o.description ? `<p style="margin:.25rem 0 0;font-size:14.5px;color:var(--ink-700)">${esc(o.description)}</p>` : ''}
-    <p style="margin:.3rem 0 0;font-size:12.5px;color:var(--ink-500)">${esc(o.validity)}</p>
-  </li>`,
-          )
+          .map((o) => {
+            const thumb = o.photo ? pictureHtml(o.photo, 160, '', 'loading="lazy"') : null;
+            return `<li>
+  <div class="row-main">
+    ${thumb ? thumb.replace('<picture>', '<picture class="catalog-thumb">') : ''}
+    <div class="min-w-0">
+      <h3 style="margin:0;font-weight:600;font-size:15.5px">${esc(o.title)}</h3>
+      ${o.description ? `<p style="margin:.25rem 0 0;font-size:14.5px;color:var(--ink-700)">${esc(o.description)}</p>` : ''}
+      <p style="margin:.3rem 0 0;font-size:12.5px;color:var(--ink-500)">${esc(o.validity)}</p>
+    </div>
+  </div>
+</li>`;
+          })
           .join('')}</ul></section>`
       : ''
   }

@@ -222,6 +222,23 @@ export async function listCatalog(tenantId: string, options: { includeUnavailabl
   });
 }
 
+export async function getCatalogItem(tenantId: string, itemId: string) {
+  return withTenant(tenantId, async ({ tx }) => {
+    const [row] = await tx
+      .select()
+      .from(schema.catalogItems)
+      .where(
+        and(
+          eq(schema.catalogItems.id, itemId),
+          eq(schema.catalogItems.tenantId, tenantId),
+          notDeleted(schema.catalogItems),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  });
+}
+
 export async function createCatalogItem(tenantId: string, input: CatalogItemInput) {
   const data = catalogItemSchema.parse(input);
   return withTenant(tenantId, async ({ tx }) => {
@@ -299,6 +316,17 @@ export async function listOffers(tenantId: string, options: { publishedOnly?: bo
       .from(schema.offers)
       .where(and(...conditions))
       .orderBy(asc(schema.offers.sortOrder), asc(schema.offers.createdAt));
+  });
+}
+
+export async function getOffer(tenantId: string, offerId: string) {
+  return withTenant(tenantId, async ({ tx }) => {
+    const [row] = await tx
+      .select()
+      .from(schema.offers)
+      .where(and(eq(schema.offers.id, offerId), eq(schema.offers.tenantId, tenantId), notDeleted(schema.offers)))
+      .limit(1);
+    return row ?? null;
   });
 }
 

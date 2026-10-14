@@ -8,6 +8,8 @@ import {
   deleteCatalogItem,
   deleteMedia,
   deleteOffer,
+  getCatalogItem,
+  getOffer,
   replaceHours,
   updateAiConfig,
   updateCatalogItem,
@@ -112,6 +114,43 @@ export async function createCatalogItemAction(_prev: FormState, formData: FormDa
   }
 }
 
+export async function updateCatalogItemAction(
+  itemId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('catalog:write');
+    const existing = await getCatalogItem(tenantId, itemId);
+    if (!existing) return { error: 'That item was not found - it may have been removed.' };
+
+    const priceText = String(formData.get('price') ?? '');
+    const maxPriceText = String(formData.get('priceMax') ?? '');
+    const duration = String(formData.get('durationMinutes') ?? '');
+    const minQty = String(formData.get('minOrderQty') ?? '');
+    const mediaId = String(formData.get('mediaId') ?? '');
+    const stockStatus = String(formData.get('stockStatus') ?? '');
+
+    await updateCatalogItem(tenantId, itemId, {
+      name: String(formData.get('name') ?? '').trim(),
+      description: optional(formData.get('description')),
+      priceMinor: priceText ? parseMoneyToMinor(priceText) : null,
+      priceMaxMinor: maxPriceText ? parseMoneyToMinor(maxPriceText) : null,
+      priceUnit: optional(formData.get('priceUnit')),
+      durationMinutes: existing.kind === 'service' && duration ? Number(duration) : null,
+      minOrderQty: existing.kind === 'product' && minQty ? Number(minQty) : null,
+      stockStatus: (['in_stock', 'low', 'out', 'made_to_order'] as const).includes(stockStatus as never)
+        ? (stockStatus as 'in_stock' | 'low' | 'out' | 'made_to_order')
+        : null,
+      mediaId: mediaId || null,
+    });
+    await revalidateMerchant(tenantId);
+    return { success: 'Saved.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+}
+
 export async function toggleCatalogItemAction(itemId: string, isAvailable: boolean): Promise<void> {
   const { tenantId } = await requireMerchant('catalog:toggle');
   await updateCatalogItem(tenantId, itemId, { isAvailable });
@@ -164,6 +203,52 @@ export async function createOfferAction(_prev: FormState, formData: FormData): P
     });
     await revalidateMerchant(tenantId);
     return { success: 'Offer created.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+}
+
+export async function updateOfferAction(offerId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('offers:write');
+    const existing = await getOffer(tenantId, offerId);
+    if (!existing) return { error: 'That offer was not found - it may have been removed.' };
+
+    const preset = String(formData.get('preset') ?? 'custom');
+    const now = new Date();
+    let startsAt: Date | null = null;
+    let endsAt: Date | null = null;
+    if (preset === 'today') {
+      startsAt = now;
+      endsAt = new Date(now.getTime() + 86_400_000);
+    } else if (preset === 'week') {
+      startsAt = now;
+      endsAt = new Date(now.getTime() + 7 * 86_400_000);
+    } else if (preset === 'month') {
+      startsAt = now;
+      endsAt = new Date(now.getTime() + 30 * 86_400_000);
+    } else {
+      const from = String(formData.get('startsAt') ?? '');
+      const to = String(formData.get('endsAt') ?? '');
+      startsAt = from ? new Date(from) : null;
+      endsAt = to ? new Date(to) : null;
+    }
+    const weekendOnly = formData.get('weekendOnly') === 'on';
+    const mediaId = String(formData.get('mediaId') ?? '');
+
+    await updateOffer(tenantId, offerId, {
+      title: String(formData.get('title') ?? '').trim(),
+      description: optional(formData.get('description')),
+      terms: optional(formData.get('terms')),
+      couponCode: optional(formData.get('couponCode')),
+      startsAt,
+      endsAt,
+      activeWeekdays: weekendOnly ? [0, 6] : null,
+      isPublished: formData.get('isPublished') === 'on',
+      mediaId: mediaId || null,
+    });
+    await revalidateMerchant(tenantId);
+    return { success: 'Saved.' };
   } catch (error) {
     return { error: describeAuthError(error) };
   }

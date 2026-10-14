@@ -87,6 +87,7 @@ describe('renderMerchantPageHtml — security', () => {
           ctaType: 'none',
           ctaValue: null,
           mediaId: null,
+          photo: null,
           status: 'active',
           isFeatured: true,
           validity: 'Ongoing offer',
@@ -134,6 +135,89 @@ describe('renderMerchantPageHtml — content', () => {
     expect(html).toContain('Great haircuts');
     expect(html).toContain('Open now');
     expect(html).toContain('9:00 pm');
+  });
+
+  it('renders a catalog item\'s attached photo as a thumbnail, and renders fine without one', () => {
+    const withPhoto = renderMerchantPageHtml(
+      baseData({
+        services: [
+          {
+            id: 's1',
+            kind: 'service',
+            name: 'Haircut',
+            description: null,
+            priceMinor: 15000,
+            priceMaxMinor: null,
+            priceUnit: null,
+            compareAtMinor: null,
+            durationMinutes: null,
+            stockStatus: null,
+            minOrderQty: null,
+            bulkTiers: [],
+            mediaId: 'm1',
+            photo: { webp_400: 't/x/s1/400.webp' },
+            isFeatured: false,
+          },
+        ],
+      }),
+      'https://example.com',
+    );
+    expect(withPhoto).toContain('class="catalog-thumb"');
+    expect(withPhoto).toContain('/api/media/t/x/s1/400.webp');
+
+    const withoutPhoto = renderMerchantPageHtml(
+      baseData({
+        services: [
+          {
+            id: 's2',
+            kind: 'service',
+            name: 'Shave',
+            description: null,
+            priceMinor: 5000,
+            priceMaxMinor: null,
+            priceUnit: null,
+            compareAtMinor: null,
+            durationMinutes: null,
+            stockStatus: null,
+            minOrderQty: null,
+            bulkTiers: [],
+            mediaId: null,
+            photo: null,
+            isFeatured: false,
+          },
+        ],
+      }),
+      'https://example.com',
+    );
+    expect(withoutPhoto).not.toContain('class="catalog-thumb"');
+    expect(withoutPhoto).toContain('Shave');
+  });
+
+  it("renders the current offer's attached photo as a thumbnail", () => {
+    const html = renderMerchantPageHtml(
+      baseData({
+        heroOffer: {
+          id: 'o1',
+          title: 'Festival Offer',
+          description: null,
+          terms: null,
+          couponCode: null,
+          discountType: 'custom',
+          discountPercent: null,
+          discountValueMinor: null,
+          ctaType: 'none',
+          ctaValue: null,
+          mediaId: 'm2',
+          photo: { webp_400: 't/x/o1/400.webp' },
+          status: 'active',
+          isFeatured: true,
+          validity: 'Ongoing offer',
+        },
+      }),
+      'https://example.com',
+    );
+    expect(html).toContain('class="offer-thumb"');
+    expect(html).toContain('/api/media/t/x/o1/400.webp');
   });
 
   it('renders uploaded photos as a gallery with avif/webp sources', () => {
@@ -225,6 +309,7 @@ describe('renderMerchantPageHtml — content', () => {
           ctaType: 'none',
           ctaValue: null,
           mediaId: null,
+          photo: null,
           status: 'active',
           isFeatured: true,
           validity: 'Valid till 20 Sep',

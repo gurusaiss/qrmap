@@ -1,6 +1,7 @@
 'use client';
 
 import { useTransition } from 'react';
+import Link from 'next/link';
 import { Badge, Button } from '@/components/ui';
 import { formatPriceRange } from '@/modules/core/money';
 import { deleteCatalogItemAction, toggleCatalogItemAction } from '../actions';
@@ -37,6 +38,9 @@ export function CatalogItemRow({ item }: { item: Item }) {
         >
           {item.isAvailable ? 'Hide' : 'Show'}
         </Button>
+        <Link href={`/app/catalog/${item.id}`} className="tap-target rounded-[var(--radius-sm)] px-3 text-[14px] font-medium text-ink-700 transition-colors hover:bg-ink-100">
+          Edit
+        </Link>
         <Button
           variant="ghost"
           disabled={pending}

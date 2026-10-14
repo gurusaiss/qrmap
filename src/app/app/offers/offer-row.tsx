@@ -1,6 +1,7 @@
 'use client';
 
 import { useTransition } from 'react';
+import Link from 'next/link';
 import { Badge, Button } from '@/components/ui';
 import { describeValidity, type OfferStatus } from '@/modules/core/offers';
 import { deleteOfferAction, toggleOfferAction } from '../actions';
@@ -52,6 +53,9 @@ export function OfferRow({ offer, status }: { offer: Offer; status: OfferStatus 
             {offer.isPublished ? 'Unpublish' : 'Publish'}
           </Button>
         )}
+        <Link href={`/app/offers/${offer.id}`} className="tap-target rounded-[var(--radius-sm)] px-3 text-[14px] font-medium text-ink-700 transition-colors hover:bg-ink-100">
+          Edit
+        </Link>
         <Button
           variant="ghost"
           disabled={pending}

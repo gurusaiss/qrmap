@@ -25,6 +25,7 @@ export type PublicOffer = {
   ctaType: 'none' | 'call' | 'whatsapp' | 'directions' | 'link';
   ctaValue: string | null;
   mediaId: string | null;
+  photo: Record<string, string> | null;
   validity: string;
   status: OfferStatus;
   isFeatured: boolean;
@@ -44,6 +45,7 @@ export type PublicCatalogItem = {
   minOrderQty: number | null;
   bulkTiers: { minQty: number; priceMinor: number }[];
   mediaId: string | null;
+  photo: Record<string, string> | null;
   isFeatured: boolean;
 };
 
@@ -173,6 +175,22 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
       )
       .orderBy(asc(schema.media.sortOrder));
 
+    // Resolves a catalog item's or offer's own mediaId to its variants - a
+    // single lookup map rather than a per-row join, since only a handful of
+    // items/offers ever reference a photo. Filtered to non-deleted media, so
+    // a reference to a since-removed photo silently resolves to no photo
+    // rather than a broken image.
+    const mediaById = new Map(
+      (
+        await tx
+          .select({ id: schema.media.id, variants: schema.media.variants })
+          .from(schema.media)
+          .where(and(eq(schema.media.tenantId, tenantId), isNull(schema.media.deletedAt)))
+      ).map((m) => [m.id, (m.variants ?? {}) as Record<string, string>]),
+    );
+    const photoFor = (mediaId: string | null): Record<string, string> | null =>
+      mediaId ? (mediaById.get(mediaId) ?? null) : null;
+
     const [aiConfig] = await tx
       .select()
       .from(schema.aiConfigs)
@@ -226,6 +244,7 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
         ctaType: row.ctaType,
         ctaValue: row.ctaValue,
         mediaId: row.mediaId,
+        photo: photoFor(row.mediaId),
         status,
         isFeatured: row.isFeatured,
         validity: describeValidity(
@@ -259,6 +278,7 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
       minOrderQty: row.minOrderQty,
       bulkTiers: (row.bulkTiers as { minQty: number; priceMinor: number }[]) ?? [],
       mediaId: row.mediaId,
+      photo: photoFor(row.mediaId),
       isFeatured: row.isFeatured,
     });
 
