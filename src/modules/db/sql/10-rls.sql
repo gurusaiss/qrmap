@@ -55,12 +55,23 @@ END $$;
 /* -------------------------------------------------------------------------- */
 ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenants FORCE  ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_self ON tenants;
-DROP POLICY IF EXISTS system_rw   ON tenants;
+DROP POLICY IF EXISTS tenant_self        ON tenants;
+DROP POLICY IF EXISTS tenant_self_update ON tenants;
+DROP POLICY IF EXISTS system_rw          ON tenants;
 CREATE POLICY tenant_self ON tenants FOR SELECT TO mdp_app
   USING (id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+-- A merchant may rename their own shop (Shop details) and every content
+-- write bumps context_version (cache-invalidation counter, content.ts
+-- bumpContextVersion) - both run on the mdp_app connection, so both need an
+-- UPDATE policy here, not just the SELECT one above. Column-level GRANTs
+-- below keep this to exactly those two columns: status, plan_id,
+-- category_id, published_at and everything else stay admin/system-only.
+CREATE POLICY tenant_self_update ON tenants FOR UPDATE TO mdp_app
+  USING      (id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+  WITH CHECK (id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 CREATE POLICY system_rw ON tenants FOR ALL TO mdp_system USING (true) WITH CHECK (true);
 GRANT SELECT ON tenants TO mdp_app;
+GRANT UPDATE (display_name, context_version) ON tenants TO mdp_app;
 GRANT SELECT, INSERT, UPDATE ON tenants TO mdp_system;
 -- Tenants are soft-deleted only. No DELETE grant to anyone.
 
