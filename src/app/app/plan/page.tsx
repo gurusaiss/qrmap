@@ -1,7 +1,9 @@
 import { requireMerchant } from '@/modules/auth/session-server';
 import { getCurrentPlan, getFreePlan, getUsage, listPublicPlans } from '@/modules/merchants/plan';
-import { formatMoney } from '@/modules/core/money';
+import { getTenant } from '@/modules/merchants/tenants';
+import { trialStatus } from '@/modules/core/trial';
 import { Badge, Card, IconCheck, PageHeader } from '@/components/ui';
+import { TrialBanner } from '../trial-banner';
 
 export const metadata = { title: 'Plan & billing' };
 
@@ -42,16 +44,24 @@ function PlanFeature({ children }: { children: React.ReactNode }) {
 
 export default async function PlanPage() {
   const { tenantId } = await requireMerchant('billing:read');
-  const [current, allPlans, usage] = await Promise.all([
+  const [current, allPlans, usage, tenant] = await Promise.all([
     getCurrentPlan(tenantId),
     listPublicPlans(),
     getUsage(tenantId),
+    getTenant(tenantId),
   ]);
   const plan = current ?? (await getFreePlan());
+  const trial = tenant ? trialStatus(tenant.createdAt) : null;
 
   return (
     <div>
       <PageHeader title="Plan & billing" description="What your business can do, and how much of it you're using." />
+
+      {trial && (
+        <div className="mb-6">
+          <TrialBanner status={trial} />
+        </div>
+      )}
 
       <Card className="mb-6">
         <div className="flex items-center justify-between">
@@ -59,9 +69,6 @@ export default async function PlanPage() {
             <p className="text-[13px] font-medium uppercase tracking-wide text-ink-400">Current plan</p>
             <p className="mt-1 font-display text-[20px] font-semibold">{plan?.name ?? 'Free'}</p>
           </div>
-          <Badge tone={plan?.priceMinor ? 'info' : 'neutral'}>
-            {plan?.priceMinor ? `${formatMoney(plan.priceMinor, plan.currency as 'INR')}/${plan.interval}` : 'Free'}
-          </Badge>
         </div>
 
         <div className="mt-5 space-y-4">
@@ -82,7 +89,7 @@ export default async function PlanPage() {
 
       {allPlans.length > 0 && (
         <section>
-          <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-ink-400">Available plans</h2>
+          <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-ink-400">What&apos;s available</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {allPlans.map((p) => (
               <Card
@@ -98,10 +105,6 @@ export default async function PlanPage() {
                     </Badge>
                   )}
                 </div>
-                <p className="mt-1 font-display text-[22px] font-semibold tabular-nums">
-                  {p.priceMinor ? formatMoney(p.priceMinor, p.currency as 'INR') : '₹0'}
-                  <span className="text-[13px] font-normal text-ink-400">/{p.interval}</span>
-                </p>
                 <ul className="mt-3 space-y-1.5">
                   {p.features.ai && <PlanFeature>AI assistant</PlanFeature>}
                   {p.features.website && <PlanFeature>Website</PlanFeature>}
@@ -112,8 +115,7 @@ export default async function PlanPage() {
             ))}
           </div>
           <p className="mt-4 text-[13px] text-ink-400">
-            Online upgrades aren&apos;t available yet. To change your plan, contact support and
-            we&apos;ll help you switch.
+            For pricing, or to change your plan, please contact your platform admin.
           </p>
         </section>
       )}

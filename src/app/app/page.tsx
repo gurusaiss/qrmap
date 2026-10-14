@@ -6,9 +6,11 @@ import { listCatalog, listOffers } from '@/modules/merchants/content';
 import { summary } from '@/modules/analytics';
 import { env } from '@/modules/core/env';
 import { shouldShowDomainChangeNotice } from '@/modules/platform/settings';
+import { trialStatus } from '@/modules/core/trial';
 import { ButtonLink, Card, IconChevronRight, Stat } from '@/components/ui';
 import { PublishControls } from './publish-controls';
 import { DomainChangeBanner } from './domain-change-banner';
+import { TrialBanner } from './trial-banner';
 
 export const metadata = { title: 'Your shop' };
 
@@ -29,6 +31,7 @@ export default async function DashboardHome() {
 
   const pageUrl = slug ? `${env().PUBLIC_QR_ORIGIN}/m/${slug}` : null;
   const published = Boolean(tenant?.publishedAt);
+  const trial = tenant ? trialStatus(tenant.createdAt) : null;
 
   const nudges: { text: string; href: string }[] = [];
   if (catalog.length < 3) {
@@ -44,6 +47,7 @@ export default async function DashboardHome() {
   return (
     <div className="space-y-5">
       {showDomainNotice && <DomainChangeBanner />}
+      {trial && <TrialBanner status={trial} />}
 
       <Card>
         <p className="text-[13px] font-medium uppercase tracking-wide text-ink-400">Your page address</p>
