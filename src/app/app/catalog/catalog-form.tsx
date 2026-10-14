@@ -5,6 +5,7 @@ import { Button, ErrorText, Field, Input, Select, SuccessText } from '@/componen
 import { createCatalogItemAction, type FormState } from '../actions';
 
 const initial: FormState = {};
+const MAX_PHOTO_MB = 12;
 
 /**
  * One form for both services and products - they differ by a single field
@@ -15,6 +16,7 @@ const initial: FormState = {};
 export function CatalogForm() {
   const [state, action, pending] = useActionState(createCatalogItemAction, initial);
   const [kind, setKind] = useState<'service' | 'product'>('service');
+  const [priceOnRequest, setPriceOnRequest] = useState(false);
 
   // Remounting the form clears its uncontrolled inputs after a successful
   // add. Adjusting state during render (rather than in an effect) is the
@@ -23,7 +25,10 @@ export function CatalogForm() {
   const [resetKey, setResetKey] = useState(0);
   if (state !== prevState) {
     setPrevState(state);
-    if (state.success) setResetKey((k) => k + 1);
+    if (state.success) {
+      setResetKey((k) => k + 1);
+      setPriceOnRequest(false);
+    }
   }
 
   return (
@@ -47,13 +52,35 @@ export function CatalogForm() {
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Price (₹)" hint="Leave blank for 'price on request'">
-          <Input name="price" inputMode="decimal" placeholder="150" />
+        <Field label="Price (₹)">
+          <Input
+            name="price"
+            inputMode="decimal"
+            placeholder="150"
+            required={!priceOnRequest}
+            disabled={priceOnRequest}
+          />
         </Field>
         <Field label="Up to (₹)" hint="For a price range">
-          <Input name="priceMax" inputMode="decimal" placeholder="Optional" />
+          <Input name="priceMax" inputMode="decimal" placeholder="Optional" disabled={priceOnRequest} />
         </Field>
       </div>
+
+      <label className="flex items-center gap-2 text-[14px]">
+        <input
+          type="checkbox"
+          name="priceOnRequest"
+          checked={priceOnRequest}
+          onChange={(e) => setPriceOnRequest(e.target.checked)}
+          className="h-5 w-5"
+        />
+        Price on request (don&apos;t show a fixed price)
+      </label>
+
+      <Field label="Photo" hint="Optional — shown next to this item on your page">
+        <input type="file" name="photo" accept="image/*" className="w-full text-[14px]" />
+        <p className="mt-1 text-[12px] text-ink-400">Up to {MAX_PHOTO_MB}MB. JPG, PNG, WebP or AVIF.</p>
+      </Field>
 
       {kind === 'service' ? (
         <Field label="Duration (minutes)" hint="Optional">

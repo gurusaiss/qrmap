@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 import { Button, ErrorText, Field, Input, Select, SuccessText, Textarea } from '@/components/ui';
 import { createOfferAction, type FormState } from '../actions';
+import { DiscountFields } from './discount-fields';
 
 const initial: FormState = {};
 
@@ -38,6 +39,8 @@ export function OfferForm() {
         <Textarea name="description" maxLength={1000} />
       </Field>
 
+      <DiscountFields />
+
       <Field label="How long does it run?">
         <Select name="preset" value={preset} onChange={(e) => setPreset(e.target.value)}>
           <option value="today">Today only</option>
@@ -65,6 +68,11 @@ export function OfferForm() {
 
       <Field label="Coupon code" hint="Optional">
         <Input name="couponCode" maxLength={40} />
+      </Field>
+
+      <Field label="Flyer image" hint="Optional — shown with this offer on your page">
+        <input type="file" name="photo" accept="image/*" className="w-full text-[14px]" />
+        <p className="mt-1 text-[12px] text-ink-400">Up to 12MB. JPG, PNG, WebP or AVIF.</p>
       </Field>
 
       <label className="flex items-center gap-2 text-[14px]">

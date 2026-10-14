@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireMerchant } from '@/modules/auth/session-server';
 import { getOffer, listMedia } from '@/modules/merchants/content';
+import { pickVariant } from '@/modules/media/upload';
 import { PageHeader } from '@/components/ui';
 import { EditOfferForm } from './edit-form';
 
@@ -17,12 +18,18 @@ export default async function EditOfferPage({ params }: { params: Promise<{ id: 
   const [offer, media] = await Promise.all([getOffer(tenantId, id), listMedia(tenantId)]);
   if (!offer) notFound();
 
+  const currentPhoto = offer.mediaId ? media.find((m) => m.id === offer.mediaId) : null;
+  const currentPhotoKey = currentPhoto
+    ? (pickVariant(currentPhoto.variants as Record<string, string>, 'webp', 160) ??
+      pickVariant(currentPhoto.variants as Record<string, string>, 'avif', 160))
+    : null;
+
   return (
     <div>
       <PageHeader title="Edit offer" />
       <EditOfferForm
         offerId={offer.id}
-        photos={media.map((m) => ({ id: m.id, altText: m.altText }))}
+        currentPhotoUrl={currentPhotoKey ? `/api/media/${currentPhotoKey}` : null}
         initial={{
           title: offer.title,
           description: offer.description ?? '',
@@ -31,7 +38,9 @@ export default async function EditOfferPage({ params }: { params: Promise<{ id: 
           weekendOnly: Boolean(offer.activeWeekdays?.includes(0) && offer.activeWeekdays?.includes(6)),
           couponCode: offer.couponCode ?? '',
           isPublished: offer.isPublished,
-          mediaId: offer.mediaId ?? '',
+          discountType: offer.discountType,
+          discountValue: offer.discountValueMinor != null ? (offer.discountValueMinor / 100).toString() : '',
+          discountPercent: offer.discountPercent != null ? offer.discountPercent.toString() : '',
         }}
       />
     </div>

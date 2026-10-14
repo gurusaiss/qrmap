@@ -4,16 +4,17 @@ import { useActionState, useState } from 'react';
 import Link from 'next/link';
 import { Button, ErrorText, Field, Input, Select, SuccessText, Textarea } from '@/components/ui';
 import { updateOfferAction, type FormState } from '../../actions';
+import { DiscountFields } from '../discount-fields';
 
 const initial: FormState = {};
 
 export function EditOfferForm({
   offerId,
-  photos,
+  currentPhotoUrl,
   initial: values,
 }: {
   offerId: string;
-  photos: { id: string; altText: string | null }[];
+  currentPhotoUrl: string | null;
   initial: {
     title: string;
     description: string;
@@ -22,11 +23,14 @@ export function EditOfferForm({
     weekendOnly: boolean;
     couponCode: string;
     isPublished: boolean;
-    mediaId: string;
+    discountType: 'percent' | 'flat' | 'bogo' | 'custom';
+    discountValue: string;
+    discountPercent: string;
   };
 }) {
   const [state, action, pending] = useActionState(updateOfferAction.bind(null, offerId), initial);
   const [preset, setPreset] = useState('custom');
+  const [removePhoto, setRemovePhoto] = useState(false);
 
   return (
     <form action={action} className="card space-y-3 p-4">
@@ -40,6 +44,12 @@ export function EditOfferForm({
       <Field label="Details" hint="Optional">
         <Textarea name="description" maxLength={1000} defaultValue={values.description} />
       </Field>
+
+      <DiscountFields
+        defaultType={values.discountType}
+        defaultValue={values.discountValue}
+        defaultPercent={values.discountPercent}
+      />
 
       <Field label="How long does it run?">
         <Select name="preset" value={preset} onChange={(e) => setPreset(e.target.value)}>
@@ -70,25 +80,26 @@ export function EditOfferForm({
         <Input name="couponCode" maxLength={40} defaultValue={values.couponCode} />
       </Field>
 
-      <Field label="Photo" hint={photos.length === 0 ? undefined : 'Shown with this offer on your page'}>
-        {photos.length === 0 ? (
-          <p className="text-[13px] text-ink-500">
-            No photos yet —{' '}
-            <Link href="/app/profile" className="underline">
-              add one in Shop details
-            </Link>
-            , then come back here to attach it.
-          </p>
-        ) : (
-          <Select name="mediaId" defaultValue={values.mediaId}>
-            <option value="">No photo</option>
-            {photos.map((p, i) => (
-              <option key={p.id} value={p.id}>
-                {p.altText || `Photo ${i + 1}`}
-              </option>
-            ))}
-          </Select>
+      <Field label="Flyer image" hint="Optional — shown with this offer on your page">
+        {currentPhotoUrl && !removePhoto && (
+          <div className="mb-2 flex items-center gap-3">
+            <img src={currentPhotoUrl} alt="" className="h-16 w-16 rounded-[var(--radius-sm)] object-cover" />
+            <label className="flex items-center gap-2 text-[13px] text-ink-500">
+              <input
+                type="checkbox"
+                name="removePhoto"
+                checked={removePhoto}
+                onChange={(e) => setRemovePhoto(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Remove this photo
+            </label>
+          </div>
         )}
+        <input type="file" name="photo" accept="image/*" className="w-full text-[14px]" />
+        <p className="mt-1 text-[12px] text-ink-400">
+          {currentPhotoUrl ? 'Choose a new file to replace it.' : 'Up to 12MB. JPG, PNG, WebP or AVIF.'}
+        </p>
       </Field>
 
       <label className="flex items-center gap-2 text-[14px]">

@@ -40,6 +40,48 @@ function optional(value: FormDataEntryValue | null): string | null {
   return text === '' ? null : text;
 }
 
+/**
+ * Photo upload is optional everywhere it appears (catalog items, offers): a
+ * merchant may add one, replace one, remove one, or leave it alone entirely.
+ * Returns `{}` (no key at all) when nothing changed, so a partial `update*`
+ * call never accidentally wipes an existing photo just because this form
+ * submission didn't touch it.
+ */
+async function resolvePhotoPatch(
+  tenantId: string,
+  formData: FormData,
+  kind: 'catalog' | 'offer',
+  altText: string,
+): Promise<{ mediaId?: string | null }> {
+  const file = formData.get('photo');
+  if (file instanceof File && file.size > 0) {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { mediaId } = await ingestImage({ tenantId, buffer, kind, altText });
+    return { mediaId };
+  }
+  if (formData.get('removePhoto') === 'on') return { mediaId: null };
+  return {};
+}
+
+/** The discount's own "price" (how much off, or what %) - independent of the free-text title/description. */
+function resolveDiscount(formData: FormData): {
+  discountType: 'percent' | 'flat' | 'bogo' | 'custom';
+  discountValueMinor: number | null;
+  discountPercent: number | null;
+} {
+  const raw = String(formData.get('discountType') ?? 'custom');
+  const discountType = (['percent', 'flat', 'bogo', 'custom'] as const).includes(raw as never)
+    ? (raw as 'percent' | 'flat' | 'bogo' | 'custom')
+    : 'custom';
+  const valueText = String(formData.get('discountValue') ?? '');
+  const percentText = String(formData.get('discountPercent') ?? '');
+  return {
+    discountType,
+    discountValueMinor: discountType === 'flat' && valueText ? parseMoneyToMinor(valueText) : null,
+    discountPercent: discountType === 'percent' && percentText ? Number(percentText) : null,
+  };
+}
+
 export async function saveProfileAction(_prev: FormState, formData: FormData): Promise<FormState> {
   try {
     const { tenantId } = await requireMerchant('profile:write');
@@ -97,16 +139,26 @@ export async function createCatalogItemAction(_prev: FormState, formData: FormDa
     const duration = String(formData.get('durationMinutes') ?? '');
     const minQty = String(formData.get('minOrderQty') ?? '');
     const kind = formData.get('kind') === 'product' ? 'product' : 'service';
+    const name = String(formData.get('name') ?? '').trim();
+    const priceOnRequest = formData.get('priceOnRequest') === 'on';
+    // Name and price are the only two things every item truly needs - a price
+    // is skippable only via the explicit "price on request" toggle, never by
+    // silently leaving the field blank.
+    if (!priceOnRequest && !priceText) {
+      return { error: 'Enter a price, or turn on "Price on request".' };
+    }
+    const photoPatch = await resolvePhotoPatch(tenantId, formData, 'catalog', name);
 
     await createCatalogItem(tenantId, {
       kind,
-      name: String(formData.get('name') ?? '').trim(),
+      name,
       description: optional(formData.get('description')),
-      priceMinor: priceText ? parseMoneyToMinor(priceText) : null,
-      priceMaxMinor: maxPriceText ? parseMoneyToMinor(maxPriceText) : null,
+      priceMinor: !priceOnRequest && priceText ? parseMoneyToMinor(priceText) : null,
+      priceMaxMinor: !priceOnRequest && maxPriceText ? parseMoneyToMinor(maxPriceText) : null,
       priceUnit: optional(formData.get('priceUnit')),
       durationMinutes: kind === 'service' && duration ? Number(duration) : null,
       minOrderQty: minQty ? Number(minQty) : null,
+      ...photoPatch,
     });
     await revalidateMerchant(tenantId);
     return { success: 'Added to your page.' };
@@ -129,21 +181,26 @@ export async function updateCatalogItemAction(
     const maxPriceText = String(formData.get('priceMax') ?? '');
     const duration = String(formData.get('durationMinutes') ?? '');
     const minQty = String(formData.get('minOrderQty') ?? '');
-    const mediaId = String(formData.get('mediaId') ?? '');
     const stockStatus = String(formData.get('stockStatus') ?? '');
+    const name = String(formData.get('name') ?? '').trim();
+    const priceOnRequest = formData.get('priceOnRequest') === 'on';
+    if (!priceOnRequest && !priceText) {
+      return { error: 'Enter a price, or turn on "Price on request".' };
+    }
+    const photoPatch = await resolvePhotoPatch(tenantId, formData, 'catalog', name);
 
     await updateCatalogItem(tenantId, itemId, {
-      name: String(formData.get('name') ?? '').trim(),
+      name,
       description: optional(formData.get('description')),
-      priceMinor: priceText ? parseMoneyToMinor(priceText) : null,
-      priceMaxMinor: maxPriceText ? parseMoneyToMinor(maxPriceText) : null,
+      priceMinor: !priceOnRequest && priceText ? parseMoneyToMinor(priceText) : null,
+      priceMaxMinor: !priceOnRequest && maxPriceText ? parseMoneyToMinor(maxPriceText) : null,
       priceUnit: optional(formData.get('priceUnit')),
       durationMinutes: existing.kind === 'service' && duration ? Number(duration) : null,
       minOrderQty: existing.kind === 'product' && minQty ? Number(minQty) : null,
       stockStatus: (['in_stock', 'low', 'out', 'made_to_order'] as const).includes(stockStatus as never)
         ? (stockStatus as 'in_stock' | 'low' | 'out' | 'made_to_order')
         : null,
-      mediaId: mediaId || null,
+      ...photoPatch,
     });
     await revalidateMerchant(tenantId);
     return { success: 'Saved.' };
@@ -189,18 +246,21 @@ export async function createOfferAction(_prev: FormState, formData: FormData): P
     }
 
     const weekendOnly = formData.get('weekendOnly') === 'on';
+    const title = String(formData.get('title') ?? '').trim();
+    const photoPatch = await resolvePhotoPatch(tenantId, formData, 'offer', title);
 
     await createOffer(tenantId, {
-      title: String(formData.get('title') ?? '').trim(),
+      title,
       description: optional(formData.get('description')),
       terms: optional(formData.get('terms')),
       couponCode: optional(formData.get('couponCode')),
-      discountType: 'custom',
+      ...resolveDiscount(formData),
       startsAt,
       endsAt,
       activeWeekdays: weekendOnly ? [0, 6] : null,
       isPublished: formData.get('isPublished') === 'on',
       ctaType: 'call',
+      ...photoPatch,
     });
     await revalidateMerchant(tenantId);
     return { success: 'Offer created.' };
@@ -235,18 +295,20 @@ export async function updateOfferAction(offerId: string, _prev: FormState, formD
       endsAt = to ? new Date(to) : null;
     }
     const weekendOnly = formData.get('weekendOnly') === 'on';
-    const mediaId = String(formData.get('mediaId') ?? '');
+    const title = String(formData.get('title') ?? '').trim();
+    const photoPatch = await resolvePhotoPatch(tenantId, formData, 'offer', title);
 
     await updateOffer(tenantId, offerId, {
-      title: String(formData.get('title') ?? '').trim(),
+      title,
       description: optional(formData.get('description')),
       terms: optional(formData.get('terms')),
       couponCode: optional(formData.get('couponCode')),
+      ...resolveDiscount(formData),
       startsAt,
       endsAt,
       activeWeekdays: weekendOnly ? [0, 6] : null,
       isPublished: formData.get('isPublished') === 'on',
-      mediaId: mediaId || null,
+      ...photoPatch,
     });
     await revalidateMerchant(tenantId);
     return { success: 'Saved.' };

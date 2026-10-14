@@ -321,6 +321,57 @@ describe('renderMerchantPageHtml — content', () => {
     expect(html).toContain('FEST99');
   });
 
+  it('shows the offer\'s own discount as a bold label, not just buried in free text', () => {
+    const percentOff = renderMerchantPageHtml(
+      baseData({
+        heroOffer: {
+          id: 'o1',
+          title: 'Festival Offer',
+          description: null,
+          terms: null,
+          couponCode: null,
+          discountType: 'percent',
+          discountPercent: 25,
+          discountValueMinor: null,
+          ctaType: 'none',
+          ctaValue: null,
+          mediaId: null,
+          photo: null,
+          status: 'active',
+          isFeatured: true,
+          validity: 'Ongoing offer',
+        },
+      }),
+      'https://example.com',
+    );
+    expect(percentOff).toContain('25% off');
+
+    const flatOff = renderMerchantPageHtml(
+      baseData({
+        heroOffer: {
+          id: 'o2',
+          title: 'Festival Offer',
+          description: null,
+          terms: null,
+          couponCode: null,
+          discountType: 'flat',
+          discountPercent: null,
+          discountValueMinor: 10000,
+          ctaType: 'none',
+          ctaValue: null,
+          mediaId: null,
+          photo: null,
+          status: 'active',
+          isFeatured: true,
+          validity: 'Ongoing offer',
+        },
+      }),
+      'https://example.com',
+    );
+    expect(flatOff).toContain('₹100');
+    expect(flatOff).toContain('off');
+  });
+
   it('renders call, whatsapp and directions as plain anchors requiring no JS', () => {
     const html = renderMerchantPageHtml(baseData(), 'https://example.com');
     expect(html).toContain('href="tel:+919876543210"');

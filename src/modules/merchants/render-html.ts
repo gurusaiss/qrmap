@@ -32,7 +32,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { PublicPageData } from './public-page';
-import { formatPriceRange } from '../core/money';
+import { formatMoney, formatPriceRange } from '../core/money';
 import { zonedParts } from '../core/time';
 
 /**
@@ -393,6 +393,20 @@ function galleryHtml(gallery: PublicPageData['gallery']): string {
     : '';
 }
 
+/** The offer's own "price" as one short, bold label - e.g. "20% off" / "₹100 off". */
+function discountLabel(offer: {
+  discountType: 'percent' | 'flat' | 'bogo' | 'custom';
+  discountPercent: number | null;
+  discountValueMinor: number | null;
+}): string | null {
+  if (offer.discountType === 'percent' && offer.discountPercent != null) return `${offer.discountPercent}% off`;
+  if (offer.discountType === 'flat' && offer.discountValueMinor != null) {
+    return `${formatMoney(offer.discountValueMinor)} off`;
+  }
+  if (offer.discountType === 'bogo') return 'Buy one, get one';
+  return null;
+}
+
 function catalogListHtml(items: PublicPageData['services'], wholesale: boolean): string {
   return `<ul class="catalog-list">${items
     .map((item) => {
@@ -499,11 +513,13 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string, now
     data.heroOffer
       ? (() => {
           const thumb = data.heroOffer.photo ? pictureHtml(data.heroOffer.photo, 200, '', 'loading="lazy"') : null;
+          const discount = discountLabel(data.heroOffer);
           return `<section class="offer">
     <div class="offer-body">
       <div class="min-w-0">
         <p class="offer-tag">${ICON_TAG}Current offer</p>
         <h2>${esc(data.heroOffer.title)}</h2>
+        ${discount ? `<p style="margin:.35rem 0 0;font-size:20px;font-weight:700;color:var(--accent-text)">${esc(discount)}</p>` : ''}
         ${data.heroOffer.description ? `<p style="margin:.3rem 0 0;font-size:15px;color:var(--ink-700)">${esc(data.heroOffer.description)}</p>` : ''}
         <p style="margin-top:.55rem;font-size:13px;color:var(--ink-500)">${esc(data.heroOffer.validity)}</p>
         ${data.heroOffer.couponCode ? `<p class="coupon">${esc(data.heroOffer.couponCode)}</p>` : ''}
@@ -522,11 +538,13 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string, now
       ? `<section class="card-section"><h2>${ICON_TAG}More offers</h2><ul class="list offers-more">${data.offers
           .map((o) => {
             const thumb = o.photo ? pictureHtml(o.photo, 160, '', 'loading="lazy"') : null;
+            const discount = discountLabel(o);
             return `<li>
   <div class="row-main">
     ${thumb ? thumb.replace('<picture>', '<picture class="catalog-thumb">') : ''}
     <div class="min-w-0">
       <h3 style="margin:0;font-weight:600;font-size:15.5px">${esc(o.title)}</h3>
+      ${discount ? `<p style="margin:.2rem 0 0;font-size:14.5px;font-weight:700;color:var(--accent-text)">${esc(discount)}</p>` : ''}
       ${o.description ? `<p style="margin:.25rem 0 0;font-size:14.5px;color:var(--ink-700)">${esc(o.description)}</p>` : ''}
       <p style="margin:.3rem 0 0;font-size:12.5px;color:var(--ink-500)">${esc(o.validity)}</p>
     </div>

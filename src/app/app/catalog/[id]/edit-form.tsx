@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import Link from 'next/link';
 import { Button, ErrorText, Field, Input, Select, SuccessText } from '@/components/ui';
 import { updateCatalogItemAction, type FormState } from '../../actions';
@@ -10,12 +10,12 @@ const initial: FormState = {};
 export function EditCatalogItemForm({
   itemId,
   kind,
-  photos,
+  currentPhotoUrl,
   initial: values,
 }: {
   itemId: string;
   kind: 'service' | 'product';
-  photos: { id: string; altText: string | null }[];
+  currentPhotoUrl: string | null;
   initial: {
     name: string;
     description: string;
@@ -25,10 +25,11 @@ export function EditCatalogItemForm({
     durationMinutes: string;
     minOrderQty: string;
     stockStatus: string;
-    mediaId: string;
   };
 }) {
   const [state, action, pending] = useActionState(updateCatalogItemAction.bind(null, itemId), initial);
+  const [priceOnRequest, setPriceOnRequest] = useState(values.price === '' && values.priceMax === '');
+  const [removePhoto, setRemovePhoto] = useState(false);
 
   return (
     <form action={action} className="card space-y-3 p-4">
@@ -44,13 +45,30 @@ export function EditCatalogItemForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Price (₹)" hint="Leave blank for 'price on request'">
-          <Input name="price" inputMode="decimal" defaultValue={values.price} />
+        <Field label="Price (₹)">
+          <Input
+            name="price"
+            inputMode="decimal"
+            defaultValue={values.price}
+            required={!priceOnRequest}
+            disabled={priceOnRequest}
+          />
         </Field>
         <Field label="Up to (₹)" hint="For a price range">
-          <Input name="priceMax" inputMode="decimal" defaultValue={values.priceMax} />
+          <Input name="priceMax" inputMode="decimal" defaultValue={values.priceMax} disabled={priceOnRequest} />
         </Field>
       </div>
+
+      <label className="flex items-center gap-2 text-[14px]">
+        <input
+          type="checkbox"
+          name="priceOnRequest"
+          checked={priceOnRequest}
+          onChange={(e) => setPriceOnRequest(e.target.checked)}
+          className="h-5 w-5"
+        />
+        Price on request (don&apos;t show a fixed price)
+      </label>
 
       {kind === 'service' ? (
         <Field label="Duration (minutes)" hint="Optional">
@@ -75,25 +93,26 @@ export function EditCatalogItemForm({
         </Select>
       </Field>
 
-      <Field label="Photo" hint={photos.length === 0 ? undefined : 'Shown next to this item on your page'}>
-        {photos.length === 0 ? (
-          <p className="text-[13px] text-ink-500">
-            No photos yet —{' '}
-            <Link href="/app/profile" className="underline">
-              add one in Shop details
-            </Link>
-            , then come back here to attach it.
-          </p>
-        ) : (
-          <Select name="mediaId" defaultValue={values.mediaId}>
-            <option value="">No photo</option>
-            {photos.map((p, i) => (
-              <option key={p.id} value={p.id}>
-                {p.altText || `Photo ${i + 1}`}
-              </option>
-            ))}
-          </Select>
+      <Field label="Photo" hint="Optional — shown next to this item on your page">
+        {currentPhotoUrl && !removePhoto && (
+          <div className="mb-2 flex items-center gap-3">
+            <img src={currentPhotoUrl} alt="" className="h-16 w-16 rounded-[var(--radius-sm)] object-cover" />
+            <label className="flex items-center gap-2 text-[13px] text-ink-500">
+              <input
+                type="checkbox"
+                name="removePhoto"
+                checked={removePhoto}
+                onChange={(e) => setRemovePhoto(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Remove this photo
+            </label>
+          </div>
         )}
+        <input type="file" name="photo" accept="image/*" className="w-full text-[14px]" />
+        <p className="mt-1 text-[12px] text-ink-400">
+          {currentPhotoUrl ? 'Choose a new file to replace it.' : 'Up to 12MB. JPG, PNG, WebP or AVIF.'}
+        </p>
       </Field>
 
       <Button type="submit" disabled={pending} className="w-full">
