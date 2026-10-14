@@ -55,6 +55,19 @@ describe('effectiveFeatureEnabled', () => {
   it('does not force a feature on: an override with enabled:true never overrides the merchant off-switch', () => {
     expect(effectiveFeatureEnabled(false, { flagKey: FLAG_KEY, enabled: true })).toBe(false);
   });
+
+  it('defaults the platform-wide flag to enabled, so every pre-existing 2-arg call site is unaffected', () => {
+    expect(effectiveFeatureEnabled(true, undefined)).toBe(true);
+  });
+
+  it('a disabled platform-wide flag overrides everything, even a merchant who has it on with no block', () => {
+    expect(effectiveFeatureEnabled(true, undefined, false)).toBe(false);
+  });
+
+  it('an enabled platform-wide flag does not override the merchant or the per-tenant block', () => {
+    expect(effectiveFeatureEnabled(false, undefined, true)).toBe(false);
+    expect(effectiveFeatureEnabled(true, { flagKey: FLAG_KEY, enabled: false }, true)).toBe(false);
+  });
 });
 
 describe('admin feature overrides (real database)', () => {

@@ -66,10 +66,17 @@ export async function setTenantFeatureBlock(
 /**
  * The actual gate. `ownSetting` is whatever the merchant (or a category
  * default) already decided; a block only ever pulls that down to false, it
- * never raises it to true.
+ * never raises it to true. `platformEnabled` is the feature_flags row for
+ * this key (Platform settings → Feature flags) - a platform-wide kill
+ * switch underneath the per-tenant one; defaults to true so every existing
+ * caller that doesn't pass it is unaffected.
  */
-export function effectiveFeatureEnabled(ownSetting: boolean, override: TenantFeatureOverride | undefined): boolean {
-  return ownSetting && override?.enabled !== false;
+export function effectiveFeatureEnabled(
+  ownSetting: boolean,
+  override: TenantFeatureOverride | undefined,
+  platformEnabled = true,
+): boolean {
+  return platformEnabled && ownSetting && override?.enabled !== false;
 }
 
 /** Convenience check for a single flag, reading through the tenant connection. */

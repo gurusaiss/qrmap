@@ -192,7 +192,7 @@ export async function ask(options: AskOptions): Promise<Answer> {
   enforce(`ai:m:${options.visitorHash}`, LIMITS.aiPerVisitorMinute);
   enforce(`ai:d:${options.visitorHash}`, LIMITS.aiPerVisitorDay);
 
-  const { config, override } = await withTenant(options.tenantId, async ({ tx }) => {
+  const { config, override, platformFlag } = await withTenant(options.tenantId, async ({ tx }) => {
     const [configRow] = await tx
       .select()
       .from(schema.aiConfigs)
@@ -208,9 +208,18 @@ export async function ask(options: AskOptions): Promise<Answer> {
         ),
       )
       .limit(1);
-    return { config: configRow ?? null, override: overrideRow ?? undefined };
+    const [flagRow] = await tx
+      .select({ defaultEnabled: schema.featureFlags.defaultEnabled })
+      .from(schema.featureFlags)
+      .where(eq(schema.featureFlags.key, 'ai_assistant'))
+      .limit(1);
+    return { config: configRow ?? null, override: overrideRow ?? undefined, platformFlag: flagRow?.defaultEnabled ?? true };
   });
-  const aiEnabled = effectiveFeatureEnabled(config?.isEnabled ?? false, override ? { ...override, flagKey: 'ai_assistant' } : undefined);
+  const aiEnabled = effectiveFeatureEnabled(
+    config?.isEnabled ?? false,
+    override ? { ...override, flagKey: 'ai_assistant' } : undefined,
+    platformFlag,
+  );
   if (!aiEnabled || !config) throw new AiUnavailableError('The assistant is not enabled for this business.');
 
   await logMessage(options.tenantId, 'user', question, {});

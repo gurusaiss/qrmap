@@ -208,6 +208,12 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
       )
       .limit(1);
 
+    const [aiPlatformFlag] = await tx
+      .select({ defaultEnabled: schema.featureFlags.defaultEnabled })
+      .from(schema.featureFlags)
+      .where(eq(schema.featureFlags.key, 'ai_assistant'))
+      .limit(1);
+
     const hours: HoursRow[] = hourRows.map((r) => ({
       dayOfWeek: r.dayOfWeek,
       opensAt: r.opensAt,
@@ -321,7 +327,11 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
       services: catalogRows.filter((r) => r.kind === 'service').map(toPublicItem),
       products: catalogRows.filter((r) => r.kind === 'product').map(toPublicItem),
       gallery: galleryRows.map((g) => ({ ...g, variants: (g.variants ?? {}) as Record<string, string> })),
-      aiEnabled: effectiveFeatureEnabled(aiConfig?.isEnabled ?? false, aiOverride ? { ...aiOverride, flagKey: 'ai_assistant' } : undefined),
+      aiEnabled: effectiveFeatureEnabled(
+        aiConfig?.isEnabled ?? false,
+        aiOverride ? { ...aiOverride, flagKey: 'ai_assistant' } : undefined,
+        aiPlatformFlag?.defaultEnabled ?? true,
+      ),
     };
 
     return { kind: 'ok', data };
