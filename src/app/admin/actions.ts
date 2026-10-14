@@ -20,10 +20,31 @@ export async function createTenantAction(_prev: FormState, formData: FormData): 
   const categoryId = String(formData.get('categoryId') ?? '');
   const phone = String(formData.get('phone') ?? '').trim() || null;
   const city = String(formData.get('city') ?? '').trim() || null;
-  const ownerPhone = String(formData.get('ownerPhone') ?? '').trim() || null;
   const slug = String(formData.get('slug') ?? '').trim() || undefined;
+  const ownerFullName = String(formData.get('ownerFullName') ?? '').trim() || null;
+  const loginMethod = formData.get('loginMethod') === 'phone' ? 'phone' : 'email';
 
   if (!displayName || !categoryId) return { error: 'Business name and category are required.' };
+
+  const owner =
+    loginMethod === 'phone'
+      ? ({
+          method: 'phone' as const,
+          phone: String(formData.get('ownerPhone') ?? '').trim(),
+          pin: String(formData.get('ownerPin') ?? '').trim(),
+        })
+      : ({
+          method: 'email' as const,
+          email: String(formData.get('ownerEmail') ?? '').trim(),
+          password: String(formData.get('ownerPassword') ?? ''),
+        });
+
+  if (owner.method === 'phone' && (!owner.phone || !owner.pin)) {
+    return { error: "Enter the owner's mobile number and a 6-digit PIN." };
+  }
+  if (owner.method === 'email' && (!owner.email || !owner.password)) {
+    return { error: "Enter the owner's email and a password." };
+  }
 
   let result;
   try {
@@ -32,15 +53,18 @@ export async function createTenantAction(_prev: FormState, formData: FormData): 
       categoryId,
       phone,
       city,
-      ownerPhone,
       slug,
+      owner,
+      ownerFullName,
       actorUserId: session.userId,
     });
   } catch (error) {
     return { error: describeAuthError(error) };
   }
 
-  redirect(`/admin/merchants/${result.tenantId}`);
+  const identifier = result.ownerLogin.method === 'email' ? result.ownerLogin.email : result.ownerLogin.phone;
+  const params = new URLSearchParams({ created: result.ownerLogin.method, identifier });
+  redirect(`/admin/merchants/${result.tenantId}?${params.toString()}`);
 }
 
 export async function suspendTenantAction(tenantId: string, reason: string): Promise<void> {

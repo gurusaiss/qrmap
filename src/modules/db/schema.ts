@@ -149,6 +149,14 @@ export const users = pgTable(
     totpSecret: text('totp_secret'),
     /** Static 6-digit PIN, platform-admin second factor (see docs/09 for why this replaced TOTP). */
     adminPinHash: text('admin_pin_hash'),
+    /**
+     * Static 6-digit PIN, a merchant's own single-factor login alongside
+     * their phone number - set by the admin at creation, changeable by the
+     * merchant afterward. Deliberately separate from adminPinHash: a
+     * different security domain (merchant access vs. platform-staff access)
+     * never shares a column, even though both are "a 6-digit PIN".
+     */
+    pinHash: text('pin_hash'),
     fullName: text('full_name'),
     status: userStatus('status').notNull().default('active'),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),

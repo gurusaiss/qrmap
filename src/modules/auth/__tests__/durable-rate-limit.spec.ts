@@ -110,5 +110,6 @@ describe('DURABLE_LIMITS', () => {
     expect(DURABLE_LIMITS.otpVerifyPerPhone.limit).toBeGreaterThan(0);
     expect(DURABLE_LIMITS.loginPerIp.limit).toBeGreaterThan(0);
     expect(DURABLE_LIMITS.pinPerUser.limit).toBeGreaterThan(0);
+    expect(DURABLE_LIMITS.pinLoginPerPhone.limit).toBeGreaterThan(0);
   });
 });

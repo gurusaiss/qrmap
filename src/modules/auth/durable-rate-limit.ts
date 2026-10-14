@@ -64,4 +64,6 @@ export const DURABLE_LIMITS = {
   otpVerifyPerPhone: { limit: 10, windowSeconds: 15 * 60 },
   loginPerIp: { limit: 10, windowSeconds: 15 * 60 },
   pinPerUser: { limit: 5, windowSeconds: 15 * 60 },
+  /** Merchant phone+PIN login - keyed by phone, since there is no user id until this succeeds. */
+  pinLoginPerPhone: { limit: 10, windowSeconds: 15 * 60 },
 } as const;

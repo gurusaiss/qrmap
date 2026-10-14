@@ -237,6 +237,49 @@ export async function completePinLogin(
   });
 }
 
+/**
+ * Phone + PIN: a merchant's single-factor login that needs no SMS at all -
+ * the PIN is set once by the admin at creation (or changed by the merchant
+ * afterward), never sent anywhere. This exists specifically because
+ * phone+OTP is hidden until an SMS driver is configured (login-form.tsx);
+ * without this, a merchant who prefers phone over email had no way to sign
+ * in at all.
+ */
+export async function loginWithPhonePin(
+  rawPhone: string,
+  pin: string,
+  context: { ip: string; userAgent: string },
+): Promise<{ token: string; userId: string }> {
+  const phone = normalisePhone(rawPhone);
+  if (!phone) throw new AuthError('Enter a valid mobile number.');
+  if (!/^\d{6}$/.test(pin)) throw new AuthError('PIN must be exactly 6 digits.');
+
+  await enforceDurable(`pinlogin:${phone}`, DURABLE_LIMITS.pinLoginPerPhone);
+
+  return withSystem(async ({ tx }) => {
+    const [user] = await tx.select().from(schema.users).where(eq(schema.users.phone, phone)).limit(1);
+
+    // Same constant-time-regardless-of-existence shape as loginWithPassword:
+    // a missing account and a wrong PIN must look identical to the caller.
+    const stored = user?.pinHash ?? 'scrypt$32768$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    const ok = await verifyPassword(pin, stored);
+
+    if (!user || !user.pinHash || !ok) throw new AuthError('Mobile number or PIN is incorrect.');
+    if (user.status !== 'active') throw new AuthError('This account is disabled.');
+
+    const token = await createSession(tx, user.id, context);
+    await tx.update(schema.users).set({ lastLoginAt: new Date() }).where(eq(schema.users.id, user.id));
+    return { token, userId: user.id };
+  });
+}
+
+/** Lets a merchant change their own phone-login PIN (distinct from a platform admin's). */
+export async function setMerchantPin(userId: string, pin: string): Promise<void> {
+  if (!/^\d{6}$/.test(pin)) throw new AuthError('PIN must be exactly 6 digits.');
+  const pinHash = await hashPassword(pin);
+  await withSystem(({ tx }) => tx.update(schema.users).set({ pinHash }).where(eq(schema.users.id, userId)));
+}
+
 export async function setPassword(userId: string, password: string): Promise<void> {
   if (password.length < 10) throw new AuthError('Use at least 10 characters.');
   const passwordHash = await hashPassword(password);

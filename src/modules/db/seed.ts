@@ -128,6 +128,7 @@ async function seedDemoMerchants(adminId: string): Promise<void> {
     slug: 'sharma-hair-salon',
     phone: '+919876543210',
     city: 'Hyderabad',
+    owner: { method: 'phone', phone: '+919876543211', pin: '135790' },
     actorUserId: adminId,
   });
 
@@ -137,6 +138,7 @@ async function seedDemoMerchants(adminId: string): Promise<void> {
     slug: 'krishna-hardware',
     phone: '+919876500000',
     city: 'Vijayawada',
+    owner: { method: 'email', email: 'owner@krishna-hardware.example', password: 'change-this-password' },
     actorUserId: adminId,
   });
 

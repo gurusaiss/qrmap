@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { Button, ErrorText } from '@/components/ui';
 import { impersonateTenantAction } from '../../actions';
 
-export function ImpersonateButton({ tenantId }: { tenantId: string }) {
+export function ImpersonateButton({ tenantId, label }: { tenantId: string; label?: string }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | undefined>();
 
@@ -12,7 +12,8 @@ export function ImpersonateButton({ tenantId }: { tenantId: string }) {
     <div className="space-y-2">
       <ErrorText>{error}</ErrorText>
       <Button
-        variant="secondary"
+        variant={label ? 'primary' : 'secondary'}
+        className={label ? 'w-full' : undefined}
         disabled={pending}
         onClick={() => {
           setError(undefined);
@@ -22,7 +23,7 @@ export function ImpersonateButton({ tenantId }: { tenantId: string }) {
           });
         }}
       >
-        {pending ? 'Signing in…' : 'View as this merchant'}
+        {pending ? 'Signing in…' : (label ?? 'View as this merchant')}
       </Button>
     </div>
   );

@@ -12,9 +12,16 @@ import { ImpersonateButton } from './impersonate-button';
 
 export const metadata = { title: 'Merchant' };
 
-export default async function MerchantDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function MerchantDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ created?: string; identifier?: string }>;
+}) {
   await requirePlatform('platform:tenant:update');
   const { id } = await params;
+  const { created, identifier } = await searchParams;
 
   const tenant = await getTenant(id);
   if (!tenant) notFound();
@@ -38,8 +45,19 @@ export default async function MerchantDetailPage({ params }: { params: Promise<{
         {primary && <span className="font-mono text-[14px] text-ink-500">/m/{primary.slug}</span>}
       </div>
 
+      {created && identifier && (
+        <Card className="mb-6 border-success-600/30 bg-success-50/40">
+          <p className="font-semibold text-success-600">✓ {tenant.displayName} is set up</p>
+          <p className="mt-1 text-[14px] text-ink-700">
+            They sign in at the main site with{' '}
+            <strong>{created === 'phone' ? `mobile number ${identifier} and the PIN` : `email ${identifier} and the password`}</strong>{' '}
+            you just set — share that with them now (it won&apos;t be shown again).
+          </p>
+        </Card>
+      )}
+
       <div className="mb-6">
-        <ImpersonateButton tenantId={id} />
+        <ImpersonateButton tenantId={id} label={created ? `Go to ${tenant.displayName}'s dashboard` : undefined} />
       </div>
 
       <div className="mb-6 grid grid-cols-3 gap-3">

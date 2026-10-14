@@ -12,17 +12,32 @@ import { claimPrimarySlug, suggestSlug } from './slugs';
 import { normalizeSlugInput } from '../core/slug';
 import { generateQrToken } from '../qr';
 import { isValidTimeZone } from '../core/time';
+import { hashPassword } from '../auth/crypto';
+import { normalisePhone } from '../auth/service';
 
 export type TenantStatus = 'draft' | 'active' | 'suspended' | 'deleted';
+
+/**
+ * Exactly one of these two is how the merchant's owner account signs in -
+ * decided by the admin asking the merchant which they'd rather use, before
+ * filling in the form (docs/09). Either way, this call is the single source
+ * of truth for that credential: there is no separate invite link or
+ * temporary password to track.
+ */
+export type OwnerCredentials =
+  | { method: 'email'; email: string; password: string }
+  | { method: 'phone'; phone: string; pin: string };
 
 export type CreateTenantInput = {
   displayName: string;
   categoryId: string;
   slug?: string;
+  /** The business's own public contact number - unrelated to the owner's login phone below. */
   phone?: string | null;
   city?: string | null;
   timezone?: string;
-  ownerPhone?: string | null;
+  owner: OwnerCredentials;
+  ownerFullName?: string | null;
   actorUserId: string;
 };
 
@@ -30,6 +45,7 @@ export async function createTenant(input: CreateTenantInput): Promise<{
   tenantId: string;
   slug: string;
   qrToken: string;
+  ownerLogin: { method: 'email'; email: string } | { method: 'phone'; phone: string };
 }> {
   const timezone = input.timezone ?? 'Asia/Kolkata';
   if (!isValidTimeZone(timezone)) throw new Error(`Unknown timezone: ${timezone}`);
@@ -88,18 +104,9 @@ export async function createTenant(input: CreateTenantInput): Promise<{
       })),
     );
 
-    if (input.ownerPhone) {
-      const phone = input.ownerPhone;
-      let [user] = await tx.select().from(schema.users).where(eq(schema.users.phone, phone)).limit(1);
-      if (!user) [user] = await tx.insert(schema.users).values({ phone }).returning();
-      if (user) {
-        await tx
-          .insert(schema.memberships)
-          .values({ userId: user.id, tenantId: tenant.id, role: 'owner' });
-      }
-    }
+    const ownerLogin = await createOwnerAccount(tx, tenant.id, input.owner, input.ownerFullName ?? null);
 
-    return { tenantId: tenant.id, slug, qrToken };
+    return { tenantId: tenant.id, slug, qrToken, ownerLogin };
   });
 
   await recordAudit({
@@ -113,6 +120,48 @@ export async function createTenant(input: CreateTenantInput): Promise<{
   });
 
   return result;
+}
+
+type Tx = Parameters<Parameters<typeof withSystem>[0]>[0]['tx'];
+
+/**
+ * Creates the merchant's owner user and membership with whichever credential
+ * the admin collected, then returns the identifier (never the secret) for
+ * displaying a "created with this login" confirmation afterward.
+ */
+async function createOwnerAccount(
+  tx: Tx,
+  tenantId: string,
+  owner: OwnerCredentials,
+  fullName: string | null,
+): Promise<{ method: 'email'; email: string } | { method: 'phone'; phone: string }> {
+  if (owner.method === 'email') {
+    const email = owner.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email address.');
+    if (owner.password.length < 10) throw new Error('The owner password must be at least 10 characters.');
+
+    const [existing] = await tx.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email)).limit(1);
+    if (existing) throw new Error('That email is already in use by another account.');
+
+    const passwordHash = await hashPassword(owner.password);
+    const [user] = await tx.insert(schema.users).values({ email, passwordHash, fullName }).returning({ id: schema.users.id });
+    if (!user) throw new Error('Could not create the owner account.');
+    await tx.insert(schema.memberships).values({ userId: user.id, tenantId, role: 'owner' });
+    return { method: 'email', email };
+  }
+
+  const phone = normalisePhone(owner.phone);
+  if (!phone) throw new Error('Enter a valid mobile number for the owner.');
+  if (!/^\d{6}$/.test(owner.pin)) throw new Error('The owner PIN must be exactly 6 digits.');
+
+  const [existing] = await tx.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.phone, phone)).limit(1);
+  if (existing) throw new Error('That mobile number is already in use by another account.');
+
+  const pinHash = await hashPassword(owner.pin);
+  const [user] = await tx.insert(schema.users).values({ phone, pinHash, fullName }).returning({ id: schema.users.id });
+  if (!user) throw new Error('Could not create the owner account.');
+  await tx.insert(schema.memberships).values({ userId: user.id, tenantId, role: 'owner' });
+  return { method: 'phone', phone };
 }
 
 export async function setTenantStatus(args: {

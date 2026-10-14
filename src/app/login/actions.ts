@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import {
   completePinLogin,
   loginWithPassword,
+  loginWithPhonePin,
   requestOtp,
   revokeSession,
   verifyOtp,
@@ -78,8 +79,24 @@ export async function passwordLoginAction(_prev: ActionState, formData: FormData
     return { pinStep: 'required', pinUserId: result.userId };
   }
 
+  // 'done' is reached only by non-admin accounts (platform admins always hit
+  // one of the PIN steps above) - i.e. a merchant signing in with email.
   await setSessionCookie(result.token);
-  redirect('/admin');
+  redirect('/app');
+}
+
+/** A merchant's phone+PIN login - single factor, no SMS, no second step. */
+export async function phonePinLoginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const phone = String(formData.get('phone') ?? '');
+  const pin = String(formData.get('pin') ?? '');
+  try {
+    const context = await requestContext();
+    const { token } = await loginWithPhonePin(phone, pin, context);
+    await setSessionCookie(token);
+  } catch (error) {
+    return { error: message(error), phone };
+  }
+  redirect('/app');
 }
 
 /** Second step for platform admins: choose a PIN (first login) or verify it (every login after). */
