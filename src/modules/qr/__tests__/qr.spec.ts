@@ -108,6 +108,51 @@ describe('rendering', () => {
     expect(Buffer.from(bytes.slice(0, 5)).toString()).toBe('%PDF-');
   });
 
+  it('shows the business name by default even when fields is given with other keys unset', async () => {
+    // Regression: a plain object spread over the defaults would let an
+    // explicit `showTagline: undefined` (exactly what a merchant who never
+    // saved any preference yet looks like) silently blank out showName too.
+    const { extractPdfText } = await import('../../merchants/import/extract');
+    const bytes = await renderStandeePdf({
+      url: publicUrlForSlug(ORIGIN, 'sharma-salon'),
+      businessName: 'Sharma Hair Salon',
+      fields: { showTagline: undefined },
+    });
+    const text = await extractPdfText(Buffer.from(bytes));
+    expect(text).toContain('Sharma Hair Salon');
+  });
+
+  it('only prints the fields the merchant actually selected', async () => {
+    const { extractPdfText } = await import('../../merchants/import/extract');
+
+    const withExtras = await renderStandeePdf({
+      url: publicUrlForSlug(ORIGIN, 'sharma-salon'),
+      businessName: 'Sharma Hair Salon',
+      tagline: 'Great haircuts since 1998',
+      address: '12 Main Road, Hyderabad',
+      phone: '+919876543210',
+      fields: { showName: true, showTagline: true, showAddress: true, showPhone: true },
+    });
+    const withExtrasText = await extractPdfText(Buffer.from(withExtras));
+    expect(withExtrasText).toContain('Great haircuts since 1998');
+    expect(withExtrasText).toContain('12 Main Road, Hyderabad');
+    expect(withExtrasText).toContain('+919876543210');
+
+    const nameOnly = await renderStandeePdf({
+      url: publicUrlForSlug(ORIGIN, 'sharma-salon'),
+      businessName: 'Sharma Hair Salon',
+      tagline: 'Great haircuts since 1998',
+      address: '12 Main Road, Hyderabad',
+      phone: '+919876543210',
+      fields: { showName: true, showTagline: false, showAddress: false, showPhone: false },
+    });
+    const nameOnlyText = await extractPdfText(Buffer.from(nameOnly));
+    expect(nameOnlyText).toContain('Sharma Hair Salon');
+    expect(nameOnlyText).not.toContain('Great haircuts since 1998');
+    expect(nameOnlyText).not.toContain('12 Main Road, Hyderabad');
+    expect(nameOnlyText).not.toContain('+919876543210');
+  });
+
   it('a verified render survives every supported colour and size combination', async () => {
     const url = publicUrlForSlug(ORIGIN, 'a-longer-merchant-slug-here');
     for (const size of [256, 1024]) {

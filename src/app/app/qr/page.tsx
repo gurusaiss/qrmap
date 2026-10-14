@@ -1,15 +1,21 @@
 import { requireMerchant } from '@/modules/auth/session-server';
 import { primarySlugFor } from '@/modules/merchants/slugs';
+import { getProfile, getQrPrintPrefs } from '@/modules/merchants/content';
 import { minimumPrintSizeMm, publicUrlForSlug } from '@/modules/qr';
 import { env } from '@/modules/core/env';
 import { Badge, ButtonLink, Card, IconCheck, PageHeader } from '@/components/ui';
 import { QrCustomizer } from './qr-customizer';
+import { QrFieldsForm } from './qr-fields-form';
 
 export const metadata = { title: 'Your QR code' };
 
 export default async function QrPage() {
   const { tenantId } = await requireMerchant('qr:read');
-  const slug = await primarySlugFor(tenantId);
+  const [slug, { profile }, prefs] = await Promise.all([
+    primarySlugFor(tenantId),
+    getProfile(tenantId),
+    getQrPrintPrefs(tenantId),
+  ]);
 
   if (!slug) {
     return (
@@ -41,6 +47,9 @@ export default async function QrPage() {
         <p className="break-all font-mono text-[14px] text-ink-500">{url}</p>
 
         <div className="flex w-full flex-wrap justify-center gap-2">
+          <ButtonLink href={`/api/qr/${slug}.pdf`} download>
+            Download printable standee (PDF)
+          </ButtonLink>
           <ButtonLink href={`/api/qr/${slug}.png?size=1600`} variant="secondary" download>
             Download PNG
           </ButtonLink>
@@ -49,6 +58,21 @@ export default async function QrPage() {
           </ButtonLink>
         </div>
       </Card>
+
+      <div className="mt-4">
+        <QrFieldsForm
+          initial={{
+            showName: prefs.showName ?? true,
+            showTagline: prefs.showTagline ?? false,
+            showAddress: prefs.showAddress ?? false,
+            showPhone: prefs.showPhone ?? false,
+            callToAction: prefs.callToAction ?? '',
+          }}
+          hasTagline={Boolean(profile?.tagline)}
+          hasAddress={Boolean(profile?.addressLine1 || profile?.city)}
+          hasPhone={Boolean(profile?.phone)}
+        />
+      </div>
 
       <div className="mt-4">
         <QrCustomizer slug={slug} />

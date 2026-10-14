@@ -413,6 +413,44 @@ export async function updateAiConfig(tenantId: string, input: AiConfigInput): Pr
   });
 }
 
+/* -------------------------------------------------------------------------- */
+/* QR print preferences                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What a merchant wants printed around their QR code, stored in the
+ * qr_codes.style column (already provisioned for exactly this, previously
+ * unused). The QR code image itself never changes size or position based on
+ * these - only which small text fields surround it (src/modules/qr/index.ts).
+ */
+export const qrFieldsSchema = z.object({
+  showName: z.boolean().optional(),
+  showTagline: z.boolean().optional(),
+  showAddress: z.boolean().optional(),
+  showPhone: z.boolean().optional(),
+  callToAction: z.string().trim().max(120).nullish(),
+});
+
+export type QrFieldsInput = z.infer<typeof qrFieldsSchema>;
+
+export async function getQrPrintPrefs(tenantId: string): Promise<QrFieldsInput> {
+  return withTenant(tenantId, async ({ tx }) => {
+    const [row] = await tx
+      .select({ style: schema.qrCodes.style })
+      .from(schema.qrCodes)
+      .where(eq(schema.qrCodes.tenantId, tenantId))
+      .limit(1);
+    return (row?.style as QrFieldsInput | undefined) ?? {};
+  });
+}
+
+export async function updateQrPrintPrefs(tenantId: string, input: QrFieldsInput): Promise<void> {
+  const data = qrFieldsSchema.parse(input);
+  await withTenant(tenantId, async ({ tx }) => {
+    await tx.update(schema.qrCodes).set({ style: data as never }).where(eq(schema.qrCodes.tenantId, tenantId));
+  });
+}
+
 export async function deleteMedia(tenantId: string, mediaId: string): Promise<boolean> {
   return withTenant(tenantId, async ({ tx }) => {
     const [row] = await tx

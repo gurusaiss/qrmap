@@ -170,15 +170,52 @@ export async function renderVerifiedSvg(url: string, options?: RenderOptions): P
 }
 
 /**
+ * Which merchant info prints around the code, chosen by the merchant
+ * themselves (Settings → QR code). The QR is always the dominant element,
+ * fixed size and position, centred on the page - these fields only ever add
+ * small text above or below it, never compete with it. Omitted fields take
+ * no space at all, rather than leaving a visible gap.
+ */
+export type StandeeFields = {
+  showName?: boolean;
+  showTagline?: boolean;
+  showAddress?: boolean;
+  showPhone?: boolean;
+};
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/**
  * Print-ready A5 standee. The URL is printed in text beneath the code so the
- * page stays reachable if the code is damaged, or if the customer prefers to type.
+ * page stays reachable if the code is damaged, or if the customer prefers to
+ * type. The QR itself never moves or resizes regardless of which fields are
+ * selected - only the small text around it changes.
  */
 export async function renderStandeePdf(args: {
   url: string;
   businessName: string;
+  tagline?: string | null;
+  address?: string | null;
+  phone?: string | null;
   callToAction?: string;
+  fields?: StandeeFields;
   style?: RenderOptions;
 }): Promise<Uint8Array> {
+  // Filters out undefined entries before merging: a plain spread would let an
+  // explicit `{ showName: undefined }` (e.g. a merchant who never saved any
+  // preference yet) silently overwrite the `true` default with undefined,
+  // turning the name off for every merchant who hasn't visited settings.
+  const providedFields = Object.fromEntries(Object.entries(args.fields ?? {}).filter(([, v]) => v !== undefined));
+  const fields: Required<StandeeFields> = {
+    showName: true,
+    showTagline: false,
+    showAddress: false,
+    showPhone: false,
+    ...providedFields,
+  };
+
   const png = await renderVerifiedPng(args.url, args.style);
 
   const doc = await PDFDocument.create();
@@ -193,16 +230,39 @@ export async function renderStandeePdf(args: {
     page.drawText(text, { x: (420 - width) / 2, y, size, font, color: rgb(0.06, 0.06, 0.08) });
   };
 
-  const name = args.businessName.length > 34 ? `${args.businessName.slice(0, 33)}…` : args.businessName;
-  centre(name, bold, 20, 520);
-  centre(args.callToAction ?? 'Scan for offers, prices & contact', regular, 11, 498);
+  // Above the code: name, tagline, call-to-action - each optional, stacked
+  // from a fixed top anchor so turning one off simply closes the gap rather
+  // than leaving blank space.
+  let y = 528;
+  if (fields.showName) {
+    centre(truncate(args.businessName, 34), bold, 20, y);
+    y -= 26;
+  }
+  if (fields.showTagline && args.tagline) {
+    centre(truncate(args.tagline, 54), regular, 11, y);
+    y -= 18;
+  }
+  centre(truncate(args.callToAction ?? 'Scan for offers, prices & contact', 54), regular, 11, y);
 
   const qrSize = 300;
   page.drawImage(image, { x: (420 - qrSize) / 2, y: 170, width: qrSize, height: qrSize });
 
+  // Below the code: address, phone, then the always-present URL/instruction
+  // pair - the one part of this page that is never optional, since it is
+  // what keeps the page reachable if the code itself can't be scanned.
+  let by = 144;
+  if (fields.showAddress && args.address) {
+    centre(truncate(args.address, 58), regular, 10, by);
+    by -= 15;
+  }
+  if (fields.showPhone && args.phone) {
+    centre(args.phone, regular, 10, by);
+    by -= 15;
+  }
   const printable = args.url.replace(/^https?:\/\//, '');
-  centre(printable, regular, 11, 140);
-  centre('Point your phone camera at the code', regular, 9, 118);
+  centre(printable, regular, 11, by);
+  by -= 18;
+  centre('Point your phone camera at the code', regular, 9, by);
 
   return doc.save();
 }

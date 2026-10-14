@@ -15,6 +15,7 @@ import {
   updateCatalogItem,
   updateOffer,
   updateProfile,
+  updateQrPrintPrefs,
 } from '@/modules/merchants/content';
 import { publishTenant, unpublishTenant } from '@/modules/merchants/tenants';
 import { primarySlugFor } from '@/modules/merchants/slugs';
@@ -313,6 +314,22 @@ export async function saveAiConfigAction(_prev: FormState, formData: FormData): 
     });
     await revalidateMerchant(tenantId);
     return { success: 'Saved.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+}
+
+export async function saveQrPrefsAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('qr:download');
+    await updateQrPrintPrefs(tenantId, {
+      showName: formData.get('showName') === 'on',
+      showTagline: formData.get('showTagline') === 'on',
+      showAddress: formData.get('showAddress') === 'on',
+      showPhone: formData.get('showPhone') === 'on',
+      callToAction: optional(formData.get('callToAction')),
+    });
+    return { success: 'Saved. Your next download will use these.' };
   } catch (error) {
     return { error: describeAuthError(error) };
   }
