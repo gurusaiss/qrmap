@@ -11,11 +11,13 @@ export function EditCatalogItemForm({
   itemId,
   kind,
   currentPhotoUrl,
+  groups,
   initial: values,
 }: {
   itemId: string;
   kind: 'service' | 'product';
   currentPhotoUrl: string | null;
+  groups: { id: string; name: string }[];
   initial: {
     name: string;
     description: string;
@@ -25,6 +27,7 @@ export function EditCatalogItemForm({
     durationMinutes: string;
     minOrderQty: string;
     stockStatus: string;
+    groupId: string;
   };
 }) {
   const [state, action, pending] = useActionState(updateCatalogItemAction.bind(null, itemId), initial);
@@ -92,6 +95,19 @@ export function EditCatalogItemForm({
           <option value="made_to_order">Made to order</option>
         </Select>
       </Field>
+
+      {groups.length > 0 && (
+        <Field label="Category" hint="Optional">
+          <Select name="groupId" defaultValue={values.groupId}>
+            <option value="">No category</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
 
       <Field label="Photo" hint="Optional — shown next to this item on your page">
         {currentPhotoUrl && !removePhoto && (

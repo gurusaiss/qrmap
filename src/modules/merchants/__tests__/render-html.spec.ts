@@ -8,7 +8,27 @@ import {
   renderNotFoundHtml,
   renderStatusPageHtml,
 } from '../render-html';
-import type { PublicPageData } from '../public-page';
+import type { PublicCatalogItem, PublicPageData } from '../public-page';
+
+function catalogItem(overrides: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'id' | 'name'>): PublicCatalogItem {
+  return {
+    kind: 'service',
+    description: null,
+    priceMinor: 10000,
+    priceMaxMinor: null,
+    priceUnit: null,
+    compareAtMinor: null,
+    durationMinutes: null,
+    stockStatus: null,
+    minOrderQty: null,
+    bulkTiers: [],
+    mediaId: null,
+    photo: null,
+    isFeatured: false,
+    groupName: null,
+    ...overrides,
+  };
+}
 
 function baseData(overrides: Partial<PublicPageData> = {}): PublicPageData {
   return {
@@ -157,6 +177,7 @@ describe('renderMerchantPageHtml — content', () => {
             mediaId: 'm1',
             photo: { webp_400: 't/x/s1/400.webp' },
             isFeatured: false,
+            groupName: null,
           },
         ],
       }),
@@ -184,6 +205,7 @@ describe('renderMerchantPageHtml — content', () => {
             mediaId: null,
             photo: null,
             isFeatured: false,
+            groupName: null,
           },
         ],
       }),
@@ -191,6 +213,44 @@ describe('renderMerchantPageHtml — content', () => {
     );
     expect(withoutPhoto).not.toContain('class="catalog-thumb"');
     expect(withoutPhoto).toContain('Shave');
+  });
+
+  describe('catalog categories', () => {
+    it('renders one flat list, byte-identical to before categories existed, when nothing uses them', () => {
+      const html = renderMerchantPageHtml(
+        baseData({
+          services: [
+            catalogItem({ id: 's1', name: 'Haircut' }),
+            catalogItem({ id: 's2', name: 'Shave' }),
+          ],
+        }),
+        'https://example.com',
+      );
+      // The CSS rule for .catalog-group-heading is always present in the
+      // stylesheet; what must NOT be present is the class actually applied.
+      expect(html).not.toContain('class="catalog-group-heading"');
+      expect(html.match(/<ul class="catalog-list">/g)?.length).toBe(1);
+    });
+
+    it('groups items under their category name when a merchant uses categories', () => {
+      const html = renderMerchantPageHtml(
+        baseData({
+          services: [
+            catalogItem({ id: 's1', name: 'Haircut', groupName: 'Hair' }),
+            catalogItem({ id: 's2', name: 'Manicure', groupName: 'Nails' }),
+            catalogItem({ id: 's3', name: 'Consultation' }),
+          ],
+        }),
+        'https://example.com',
+      );
+      expect(html).toContain('class="catalog-group-heading">Hair<');
+      expect(html).toContain('class="catalog-group-heading">Nails<');
+      // Three categories (two named, one not) means three separate lists.
+      expect(html.match(/<ul class="catalog-list">/g)?.length).toBe(3);
+      const hairIndex = html.indexOf('Haircut');
+      const nailsHeadingIndex = html.indexOf('class="catalog-group-heading">Nails');
+      expect(hairIndex).toBeLessThan(nailsHeadingIndex);
+    });
   });
 
   it("renders the current offer's attached photo as a thumbnail", () => {

@@ -13,7 +13,13 @@ const MAX_PHOTO_MB = 12;
  * (decision D15). Two separate forms would mean maintaining two near-identical
  * screens for no merchant benefit.
  */
-export function CatalogForm() {
+export function CatalogForm({
+  groups = [],
+  defaultGroupId,
+}: {
+  groups?: { id: string; name: string }[];
+  defaultGroupId?: string;
+}) {
   const [state, action, pending] = useActionState(createCatalogItemAction, initial);
   const [kind, setKind] = useState<'service' | 'product'>('service');
   const [priceOnRequest, setPriceOnRequest] = useState(false);
@@ -95,6 +101,23 @@ export function CatalogForm() {
       <Field label="Unit" hint="e.g. per kg, per piece — optional">
         <Input name="priceUnit" maxLength={40} />
       </Field>
+
+      {defaultGroupId ? (
+        <input type="hidden" name="groupId" value={defaultGroupId} />
+      ) : (
+        groups.length > 0 && (
+          <Field label="Category" hint="Optional">
+            <Select name="groupId" defaultValue="">
+              <option value="">No category</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )
+      )}
 
       <Button type="submit" disabled={pending} className="w-full">
         {pending ? 'Adding…' : 'Add to my page'}

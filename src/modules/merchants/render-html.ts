@@ -302,6 +302,8 @@ section.card-section>h2 svg{width:14px;height:14px;opacity:.8;flex:none}
 .list li{list-style:none}
 
 .catalog-list{margin:0;padding:0}
+.catalog-group:not(:first-child){border-top:1px solid var(--ink-100)}
+.catalog-group-heading{margin:0;padding:.75rem 1rem .4rem;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-400);background:var(--ink-50)}
 .catalog-list li{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 1rem;border-bottom:1px solid var(--ink-100);transition:background-color .15s ease}
 .catalog-list li:last-child{border-bottom:none}
 @media(hover:hover){.catalog-list li:hover{background:var(--ink-50)}}
@@ -407,18 +409,16 @@ function discountLabel(offer: {
   return null;
 }
 
-function catalogListHtml(items: PublicPageData['services'], wholesale: boolean): string {
-  return `<ul class="catalog-list">${items
-    .map((item) => {
-      const meta = [
-        item.durationMinutes ? `${item.durationMinutes} min` : null,
-        wholesale && item.minOrderQty ? `Min order ${item.minOrderQty}` : null,
-        item.stockStatus && item.stockStatus !== 'in_stock' ? item.stockStatus.replace(/_/g, ' ') : null,
-      ]
-        .filter(Boolean)
-        .join(' · ');
-      const thumb = item.photo ? pictureHtml(item.photo, 160, '', 'loading="lazy"') : null;
-      return `<li>
+function catalogItemLi(item: PublicPageData['services'][number], wholesale: boolean): string {
+  const meta = [
+    item.durationMinutes ? `${item.durationMinutes} min` : null,
+    wholesale && item.minOrderQty ? `Min order ${item.minOrderQty}` : null,
+    item.stockStatus && item.stockStatus !== 'in_stock' ? item.stockStatus.replace(/_/g, ' ') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const thumb = item.photo ? pictureHtml(item.photo, 160, '', 'loading="lazy"') : null;
+  return `<li>
   <div class="row-main">
     ${thumb ? thumb.replace('<picture>', '<picture class="catalog-thumb">') : ''}
     <div class="min-w-0">
@@ -429,8 +429,37 @@ function catalogListHtml(items: PublicPageData['services'], wholesale: boolean):
   </div>
   <span class="price">${esc(formatPriceRange(item.priceMinor, item.priceMaxMinor, item.priceUnit))}</span>
 </li>`;
-    })
-    .join('')}</ul>`;
+}
+
+/**
+ * Groups items under their category name ("Breads", "Cakes") when a merchant
+ * uses categories - items keep the order they were fetched in (their own
+ * sort order), and the FIRST category name encountered decides where that
+ * whole group renders, so there's no second query just to order categories.
+ * When a merchant never used categories at all (the common case, and every
+ * item that existed before this feature), every item's groupName is null and
+ * this renders byte-identical to the old flat list.
+ */
+function catalogListHtml(items: PublicPageData['services'], wholesale: boolean): string {
+  const buckets = new Map<string | null, PublicPageData['services']>();
+  for (const item of items) {
+    const bucket = buckets.get(item.groupName);
+    if (bucket) bucket.push(item);
+    else buckets.set(item.groupName, [item]);
+  }
+
+  const listFor = (list: PublicPageData['services']): string =>
+    `<ul class="catalog-list">${list.map((item) => catalogItemLi(item, wholesale)).join('')}</ul>`;
+
+  if (buckets.size <= 1) return listFor(items);
+
+  return [...buckets.entries()]
+    .map(([groupName, list]) =>
+      groupName
+        ? `<div class="catalog-group"><h3 class="catalog-group-heading">${esc(groupName)}</h3>${listFor(list)}</div>`
+        : `<div class="catalog-group">${listFor(list)}</div>`,
+    )
+    .join('');
 }
 
 export function renderMerchantPageHtml(data: PublicPageData, origin: string, now: Date = new Date()): string {

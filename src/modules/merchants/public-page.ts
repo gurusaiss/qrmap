@@ -47,6 +47,7 @@ export type PublicCatalogItem = {
   mediaId: string | null;
   photo: Record<string, string> | null;
   isFeatured: boolean;
+  groupName: string | null;
 };
 
 export type PublicPageData = {
@@ -162,6 +163,13 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
         ),
       )
       .orderBy(asc(schema.catalogItems.sortOrder), asc(schema.catalogItems.createdAt));
+
+    const groupRows = await tx
+      .select({ id: schema.catalogGroups.id, name: schema.catalogGroups.name, sortOrder: schema.catalogGroups.sortOrder })
+      .from(schema.catalogGroups)
+      .where(and(eq(schema.catalogGroups.tenantId, tenantId), isNull(schema.catalogGroups.deletedAt)))
+      .orderBy(asc(schema.catalogGroups.sortOrder), asc(schema.catalogGroups.createdAt));
+    const groupNameById = new Map(groupRows.map((g) => [g.id, g.name]));
 
     const galleryRows = await tx
       .select({ id: schema.media.id, altText: schema.media.altText, variants: schema.media.variants })
@@ -286,6 +294,7 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
       mediaId: row.mediaId,
       photo: photoFor(row.mediaId),
       isFeatured: row.isFeatured,
+      groupName: row.groupId ? (groupNameById.get(row.groupId) ?? null) : null,
     });
 
     const data: PublicPageData = {

@@ -3,13 +3,16 @@
 import { revalidatePath } from 'next/cache';
 import { requireMerchant, describeAuthError } from '@/modules/auth/session-server';
 import {
+  createCatalogGroup,
   createCatalogItem,
   createOffer,
+  deleteCatalogGroup,
   deleteCatalogItem,
   deleteMedia,
   deleteOffer,
   getCatalogItem,
   getOffer,
+  renameCatalogGroup,
   replaceHours,
   updateAiConfig,
   updateCatalogItem,
@@ -141,6 +144,7 @@ export async function createCatalogItemAction(_prev: FormState, formData: FormDa
     const kind = formData.get('kind') === 'product' ? 'product' : 'service';
     const name = String(formData.get('name') ?? '').trim();
     const priceOnRequest = formData.get('priceOnRequest') === 'on';
+    const groupId = optional(formData.get('groupId'));
     // Name and price are the only two things every item truly needs - a price
     // is skippable only via the explicit "price on request" toggle, never by
     // silently leaving the field blank.
@@ -158,6 +162,7 @@ export async function createCatalogItemAction(_prev: FormState, formData: FormDa
       priceUnit: optional(formData.get('priceUnit')),
       durationMinutes: kind === 'service' && duration ? Number(duration) : null,
       minOrderQty: minQty ? Number(minQty) : null,
+      groupId,
       ...photoPatch,
     });
     await revalidateMerchant(tenantId);
@@ -184,6 +189,7 @@ export async function updateCatalogItemAction(
     const stockStatus = String(formData.get('stockStatus') ?? '');
     const name = String(formData.get('name') ?? '').trim();
     const priceOnRequest = formData.get('priceOnRequest') === 'on';
+    const groupId = optional(formData.get('groupId'));
     if (!priceOnRequest && !priceText) {
       return { error: 'Enter a price, or turn on "Price on request".' };
     }
@@ -200,6 +206,7 @@ export async function updateCatalogItemAction(
       stockStatus: (['in_stock', 'low', 'out', 'made_to_order'] as const).includes(stockStatus as never)
         ? (stockStatus as 'in_stock' | 'low' | 'out' | 'made_to_order')
         : null,
+      groupId,
       ...photoPatch,
     });
     await revalidateMerchant(tenantId);
@@ -218,6 +225,40 @@ export async function toggleCatalogItemAction(itemId: string, isAvailable: boole
 export async function deleteCatalogItemAction(itemId: string): Promise<void> {
   const { tenantId } = await requireMerchant('catalog:write');
   await deleteCatalogItem(tenantId, itemId);
+  await revalidateMerchant(tenantId);
+}
+
+export async function createCatalogGroupAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('catalog:write');
+    const name = String(formData.get('name') ?? '').trim();
+    await createCatalogGroup(tenantId, { name });
+    await revalidateMerchant(tenantId);
+    return { success: 'Category added.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+}
+
+export async function renameCatalogGroupAction(
+  groupId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  try {
+    const { tenantId } = await requireMerchant('catalog:write');
+    const name = String(formData.get('name') ?? '').trim();
+    await renameCatalogGroup(tenantId, groupId, { name });
+    await revalidateMerchant(tenantId);
+    return { success: 'Saved.' };
+  } catch (error) {
+    return { error: describeAuthError(error) };
+  }
+}
+
+export async function deleteCatalogGroupAction(groupId: string): Promise<void> {
+  const { tenantId } = await requireMerchant('catalog:write');
+  await deleteCatalogGroup(tenantId, groupId);
   await revalidateMerchant(tenantId);
 }
 
@@ -341,21 +382,32 @@ export async function unpublishAction(): Promise<void> {
   await revalidateMerchant(tenantId);
 }
 
+/** Several photos can be picked in one go; each is ingested on its own so one bad file doesn't block the rest. */
 export async function uploadPhotoAction(_prev: FormState, formData: FormData): Promise<FormState> {
   try {
     const { tenantId } = await requireMerchant('media:write');
-    const file = formData.get('file');
-    if (!(file instanceof File) || file.size === 0) return { error: 'Choose a photo to upload.' };
+    const files = formData.getAll('file').filter((f): f is File => f instanceof File && f.size > 0);
+    if (files.length === 0) return { error: 'Choose a photo to upload.' };
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await ingestImage({
-      tenantId,
-      buffer,
-      kind: 'gallery',
-      altText: optional(formData.get('altText')),
-    });
+    const altText = optional(formData.get('altText'));
+    const failures: string[] = [];
+    let succeeded = 0;
+    for (const file of files) {
+      try {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        await ingestImage({ tenantId, buffer, kind: 'gallery', altText });
+        succeeded += 1;
+      } catch (error) {
+        failures.push(`${file.name || 'a photo'}: ${describeAuthError(error)}`);
+      }
+    }
     await revalidateMerchant(tenantId);
-    return { success: 'Photo added to your page.' };
+
+    if (failures.length === 0) {
+      return { success: succeeded === 1 ? 'Photo added to your page.' : `${succeeded} photos added to your page.` };
+    }
+    if (succeeded === 0) return { error: failures.join('; ') };
+    return { success: `${succeeded} photo(s) added. Some failed: ${failures.join('; ')}` };
   } catch (error) {
     return { error: describeAuthError(error) };
   }

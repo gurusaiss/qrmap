@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { requireMerchant } from '@/modules/auth/session-server';
-import { getCatalogItem, listMedia } from '@/modules/merchants/content';
+import { getCatalogItem, listCatalogGroups, listMedia } from '@/modules/merchants/content';
 import { pickVariant } from '@/modules/media/upload';
 import { PageHeader } from '@/components/ui';
 import { EditCatalogItemForm } from './edit-form';
@@ -11,7 +11,11 @@ export default async function EditCatalogItemPage({ params }: { params: Promise<
   const { tenantId } = await requireMerchant('catalog:write');
   const { id } = await params;
 
-  const [item, media] = await Promise.all([getCatalogItem(tenantId, id), listMedia(tenantId)]);
+  const [item, media, groups] = await Promise.all([
+    getCatalogItem(tenantId, id),
+    listMedia(tenantId),
+    listCatalogGroups(tenantId),
+  ]);
   if (!item) notFound();
 
   const currentPhoto = item.mediaId ? media.find((m) => m.id === item.mediaId) : null;
@@ -27,6 +31,7 @@ export default async function EditCatalogItemPage({ params }: { params: Promise<
         itemId={item.id}
         kind={item.kind}
         currentPhotoUrl={currentPhotoKey ? `/api/media/${currentPhotoKey}` : null}
+        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
         initial={{
           name: item.name,
           description: item.description ?? '',
@@ -36,6 +41,7 @@ export default async function EditCatalogItemPage({ params }: { params: Promise<
           durationMinutes: item.durationMinutes != null ? item.durationMinutes.toString() : '',
           minOrderQty: item.minOrderQty != null ? item.minOrderQty.toString() : '',
           stockStatus: item.stockStatus ?? '',
+          groupId: item.groupId ?? '',
         }}
       />
     </div>

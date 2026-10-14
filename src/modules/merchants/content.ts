@@ -80,6 +80,10 @@ export const catalogItemSchema = z.object({
   path: ['durationMinutes'],
 });
 
+export const catalogGroupSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+});
+
 export const offerSchema = z.object({
   title: z.string().trim().min(1).max(120),
   description: z.string().trim().max(1000).nullish(),
@@ -114,6 +118,7 @@ export const hoursSchema = z.array(
 
 export type ProfileInput = z.infer<typeof profileSchema>;
 export type CatalogItemInput = z.infer<typeof catalogItemSchema>;
+export type CatalogGroupInput = z.infer<typeof catalogGroupSchema>;
 export type OfferInput = z.infer<typeof offerSchema>;
 
 /* -------------------------------------------------------------------------- */
@@ -207,13 +212,94 @@ export async function replaceHours(
 }
 
 /* -------------------------------------------------------------------------- */
+/* Catalog groups - "Breads", "Cakes" - optional, items without one are just  */
+/* uncategorised rather than forced into a group.                            */
+/* -------------------------------------------------------------------------- */
+
+export async function listCatalogGroups(tenantId: string) {
+  return withTenant(tenantId, async ({ tx }) =>
+    tx
+      .select()
+      .from(schema.catalogGroups)
+      .where(and(eq(schema.catalogGroups.tenantId, tenantId), notDeleted(schema.catalogGroups)))
+      .orderBy(asc(schema.catalogGroups.sortOrder), asc(schema.catalogGroups.createdAt)),
+  );
+}
+
+export async function getCatalogGroup(tenantId: string, groupId: string) {
+  return withTenant(tenantId, async ({ tx }) => {
+    const [row] = await tx
+      .select()
+      .from(schema.catalogGroups)
+      .where(
+        and(
+          eq(schema.catalogGroups.id, groupId),
+          eq(schema.catalogGroups.tenantId, tenantId),
+          notDeleted(schema.catalogGroups),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  });
+}
+
+export async function createCatalogGroup(tenantId: string, input: CatalogGroupInput) {
+  const data = catalogGroupSchema.parse(input);
+  return withTenant(tenantId, async ({ tx }) => {
+    const [maxRow] = await tx
+      .select({ max: sql<number>`coalesce(max(${schema.catalogGroups.sortOrder}), 0)::int` })
+      .from(schema.catalogGroups)
+      .where(eq(schema.catalogGroups.tenantId, tenantId));
+    const [row] = await tx
+      .insert(schema.catalogGroups)
+      .values({ ...data, tenantId, sortOrder: (maxRow?.max ?? 0) + 1 })
+      .returning();
+    return row;
+  });
+}
+
+export async function renameCatalogGroup(tenantId: string, groupId: string, input: CatalogGroupInput) {
+  const data = catalogGroupSchema.parse(input);
+  return withTenant(tenantId, async ({ tx }) => {
+    const [row] = await tx
+      .update(schema.catalogGroups)
+      .set(data)
+      .where(and(eq(schema.catalogGroups.id, groupId), eq(schema.catalogGroups.tenantId, tenantId)))
+      .returning();
+    return row ?? null;
+  });
+}
+
+/** Soft-deletes the group; its items are never deleted with it, just become uncategorised. */
+export async function deleteCatalogGroup(tenantId: string, groupId: string): Promise<boolean> {
+  return withTenant(tenantId, async ({ tx }) => {
+    await tx
+      .update(schema.catalogItems)
+      .set({ groupId: null })
+      .where(and(eq(schema.catalogItems.groupId, groupId), eq(schema.catalogItems.tenantId, tenantId)));
+    const [row] = await tx
+      .update(schema.catalogGroups)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(schema.catalogGroups.id, groupId), eq(schema.catalogGroups.tenantId, tenantId)))
+      .returning({ id: schema.catalogGroups.id });
+    return row !== undefined;
+  });
+}
+
+/* -------------------------------------------------------------------------- */
 /* Catalog                                                                    */
 /* -------------------------------------------------------------------------- */
 
-export async function listCatalog(tenantId: string, options: { includeUnavailable?: boolean } = {}) {
+export async function listCatalog(
+  tenantId: string,
+  options: { includeUnavailable?: boolean; groupId?: string | null } = {},
+) {
   return withTenant(tenantId, async ({ tx }) => {
     const conditions = [eq(schema.catalogItems.tenantId, tenantId), notDeleted(schema.catalogItems)];
     if (!options.includeUnavailable) conditions.push(eq(schema.catalogItems.isAvailable, true));
+    if (options.groupId !== undefined) {
+      conditions.push(options.groupId === null ? isNull(schema.catalogItems.groupId) : eq(schema.catalogItems.groupId, options.groupId));
+    }
     return tx
       .select()
       .from(schema.catalogItems)

@@ -23,16 +23,16 @@ export function PhotoUploadForm() {
       <ErrorText>{state.error}</ErrorText>
       <SuccessText>{state.success}</SuccessText>
 
-      <Field label="Add a photo" hint="JPEG, PNG, WebP or AVIF, up to 12 MB">
-        <Input name="file" type="file" accept="image/jpeg,image/png,image/webp,image/avif" required />
+      <Field label="Add photos" hint="JPEG, PNG, WebP or AVIF, up to 12 MB each — pick several at once if you like">
+        <Input name="file" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple required />
       </Field>
 
-      <Field label="Caption" hint="Optional — describes the photo for customers">
+      <Field label="Caption" hint="Optional — describes the photo(s) for customers">
         <Input name="altText" maxLength={300} placeholder="Inside the shop" />
       </Field>
 
       <Button type="submit" disabled={pending} className="w-full">
-        {pending ? 'Uploading…' : 'Add photo'}
+        {pending ? 'Uploading…' : 'Add photo(s)'}
       </Button>
     </form>
   );
