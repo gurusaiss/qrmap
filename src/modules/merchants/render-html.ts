@@ -51,6 +51,64 @@ function pickGalleryVariant(variants: Record<string, string>, format: 'avif' | '
   return null;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Accent colour contrast - a merchant can pick any hex colour in Shop        */
+/* details, with no restriction on how light or dark it is. Every CSS rule    */
+/* below that used a bare `#ffffff`/`var(--accent)` for text ON TOP OF that   */
+/* colour would go unreadable the moment a merchant chose something pale     */
+/* (butter yellow, baby pink, near-white) - exactly the "colours clashing     */
+/* with the fonts" a customer sees on a phone. These derive two safe colours  */
+/* from whatever the merchant picked, instead of trusting it directly.       */
+/* -------------------------------------------------------------------------- */
+function parseHex(hex: string): { r: number; g: number; b: number } | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m || !m[1]) return null;
+  const n = parseInt(m[1], 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function toHex(c: { r: number; g: number; b: number }): string {
+  const h = (v: number): string => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  return `#${h(c.r)}${h(c.g)}${h(c.b)}`;
+}
+
+function relativeLuminance(c: { r: number; g: number; b: number }): number {
+  const f = (v: number): number => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+}
+
+function contrastRatio(a: { r: number; g: number; b: number }, b: { r: number; g: number; b: number }): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  const [hi, lo] = la > lb ? [la, lb] : [lb, la];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+const WHITE = { r: 255, g: 255, b: 255 };
+const NEAR_BLACK = { r: 26, g: 16, b: 8 };
+const PAPER = { r: 253, g: 251, b: 246 };
+
+/** Text printed directly on top of the accent colour (buttons, "Today" badge). */
+function inkOn(accent: { r: number; g: number; b: number }): string {
+  return contrastRatio(accent, NEAR_BLACK) > contrastRatio(accent, WHITE) ? toHex(NEAR_BLACK) : toHex(WHITE);
+}
+
+/**
+ * The accent colour used AS TEXT on the pale page background (offer tag,
+ * hover states). Darkens it, preserving its hue, until it is actually
+ * readable rather than leaving it exactly as light as the merchant chose.
+ */
+function textAccentOn(accent: { r: number; g: number; b: number }, background: { r: number; g: number; b: number }): string {
+  let c = accent;
+  for (let i = 0; i < 16 && contrastRatio(c, background) < 4.5; i++) {
+    c = { r: c.r * 0.88, g: c.g * 0.88, b: c.b * 0.88 };
+  }
+  return toHex(c);
+}
+
 export function esc(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -199,40 +257,40 @@ export const INLINE_SCRIPT_CSP_HASH = `'sha256-${createHash('sha256').update(INL
  * a tinted page background so wide screens never show a flat white gutter.
  */
 const BASE_CSS = `
-:root{--accent:#c2491d;--accent-ink:#ffffff;--ink-900:#241b15;--ink-800:#32271e;--ink-700:#4a3c32;--ink-500:#7a6b5d;--ink-400:#9c8d7e;--ink-300:#c2b4a4;--ink-200:#e4d9c9;--ink-100:#f0e8db;--ink-50:#fbf6ec;--success:#1f7a4d;--paper:#fdfbf6;--card:#fffdf9;--shadow-sm:0 1px 2px rgba(36,27,21,.07);--shadow-md:0 10px 28px -10px rgba(36,27,21,.22);--radius:18px;--radius-sm:11px}
+:root{--accent:#c2491d;--accent-ink:#ffffff;--accent-text:#c2491d;--ink-900:#241b15;--ink-800:#32271e;--ink-700:#4a3c32;--ink-500:#7a6b5d;--ink-400:#9c8d7e;--ink-300:#c2b4a4;--ink-200:#e4d9c9;--ink-100:#f0e8db;--ink-50:#fbf6ec;--success:#1f7a4d;--paper:#fdfbf6;--card:#fffdf9;--shadow-sm:0 1px 2px rgba(36,27,21,.07);--shadow-md:0 10px 28px -10px rgba(36,27,21,.22);--radius:18px;--radius-sm:11px}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--ink-900);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;background:radial-gradient(1100px 480px at 88% -8%,color-mix(in srgb,var(--accent) 11%,transparent),transparent 60%),radial-gradient(900px 420px at -8% 25%,color-mix(in srgb,var(--accent) 6%,transparent),transparent 55%),var(--paper)}
-main{max-width:720px;margin:0 auto;padding-bottom:7rem;position:relative}
+main{max-width:720px;margin:0 auto;padding-bottom:calc(7rem + env(safe-area-inset-bottom));position:relative;overflow-x:hidden}
 .px{padding-left:1.1rem;padding-right:1.1rem}
 
 .hero{position:relative;height:clamp(200px,42vw,320px);overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 24%,var(--paper)),color-mix(in srgb,var(--accent) 5%,var(--paper)))}
 .hero-img{position:absolute;inset:0;display:block;line-height:0}
 .hero-img img{width:100%;height:100%;object-fit:cover;display:block}
 .hero-monogram{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:ui-serif,Georgia,serif;font-size:clamp(72px,18vw,140px);font-weight:700;color:color-mix(in srgb,var(--accent) 38%,var(--paper));letter-spacing:-0.02em}
-.hero-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,14,8,0) 38%,rgba(20,14,8,.74) 100%)}
+.hero-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,7,4,0) 30%,rgba(10,7,4,.58) 70%,rgba(10,7,4,.88) 100%)}
 .hero-name{position:absolute;left:0;right:0;bottom:0;padding:1.15rem 1.1rem 1rem;color:#fff}
-.hero-name h1{margin:0;font-family:ui-serif,Georgia,"Times New Roman",serif;font-size:clamp(22px,5.6vw,30px);font-weight:700;letter-spacing:-0.01em;line-height:1.18;text-wrap:balance;text-shadow:0 1px 4px rgba(0,0,0,.3)}
+.hero-name h1{margin:0;font-family:ui-serif,Georgia,"Times New Roman",serif;font-size:clamp(22px,5.6vw,30px);font-weight:700;letter-spacing:-0.01em;line-height:1.18;text-wrap:balance;text-shadow:0 1px 10px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.6)}
 
 .profile-card{position:relative;margin:-24px .85rem 0;padding:1rem 1.15rem .3rem}
 .sub{margin:0;font-size:14.5px;font-weight:500;color:var(--ink-500)}
 .open-row{display:flex;align-items:center;gap:.45rem;margin-top:.6rem;font-size:14.5px;font-weight:600}
 .dot{display:inline-block;width:9px;height:9px;border-radius:999px;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 18%,transparent);flex:none}
 
-.actions{position:sticky;top:0;z-index:10;display:flex;gap:.5rem;margin-top:.9rem;padding:.7rem 1.1rem;border-bottom:1px solid var(--ink-100);background:color-mix(in srgb,var(--paper) 90%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.actions{position:sticky;top:0;z-index:10;display:flex;gap:.5rem;margin-top:.9rem;padding:.7rem max(1.1rem,env(safe-area-inset-left)) .7rem max(1.1rem,env(safe-area-inset-right));border-bottom:1px solid var(--ink-100);background:color-mix(in srgb,var(--paper) 94%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .btn{flex:1;min-height:50px;display:flex;align-items:center;justify-content:center;gap:.4rem;border-radius:13px;font-size:13.5px;font-weight:700;text-decoration:none;transition:transform .15s ease,box-shadow .2s ease,background-color .15s ease,border-color .15s ease,color .15s ease;-webkit-tap-highlight-color:transparent}
 .btn svg{width:17px;height:17px;flex:none}
 .btn:active{transform:scale(.95)}
 .btn-primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--shadow-sm)}
 .btn-secondary{border:1.5px solid var(--ink-200);color:var(--ink-900);background:var(--card)}
-@media(hover:hover){.btn-primary:hover{box-shadow:0 8px 18px -6px color-mix(in srgb,var(--accent) 65%,transparent);transform:translateY(-1px)}.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}}
+@media(hover:hover){.btn-primary:hover{box-shadow:0 8px 18px -6px color-mix(in srgb,var(--accent) 65%,transparent);transform:translateY(-1px)}.btn-secondary:hover{border-color:var(--accent);color:var(--accent-text)}}
 
 .offer{position:relative;margin:1.1rem 1.1rem 0;border-radius:var(--radius);overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 11%,var(--card)),var(--card));border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);padding:1.1rem 1.15rem 1.15rem 1.35rem;box-shadow:var(--shadow-sm)}
 .offer::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--accent)}
 .offer-body{display:flex;justify-content:space-between;gap:.9rem;align-items:flex-start}
 .offer-thumb{display:block;flex:none;width:72px;height:72px;border-radius:12px;overflow:hidden;background:var(--ink-100)}
 .offer-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.offer-tag{display:inline-flex;align-items:center;gap:.35rem;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent)}
+.offer-tag{display:inline-flex;align-items:center;gap:.35rem;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-text)}
 .offer-tag svg{width:13px;height:13px}
 .offer h2{margin:.4rem 0 0;font-family:ui-serif,Georgia,serif;font-size:19px;font-weight:700;line-height:1.32;text-wrap:balance}
 .coupon{margin-top:.65rem;display:inline-flex;align-items:center;border:1.5px dashed color-mix(in srgb,var(--accent) 55%,var(--ink-300));border-radius:8px;padding:4px 11px;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:14.5px;font-weight:600;letter-spacing:.02em}
@@ -273,7 +331,7 @@ address{font-style:normal;font-size:14.5px;line-height:1.65;color:var(--ink-700)
 .chip-btn{display:inline-flex;align-items:center;gap:.4rem;padding:0 1rem;height:42px;border-radius:999px;border:1.5px solid var(--ink-200);background:var(--card);font-size:13.5px;font-weight:600;color:var(--ink-700);text-decoration:none;transition:border-color .15s ease,color .15s ease,transform .15s ease}
 .chip-btn svg{width:15px;height:15px;flex:none}
 .chip-btn:active{transform:scale(.96)}
-@media(hover:hover){.chip-btn:hover{border-color:var(--accent);color:var(--accent)}}
+@media(hover:hover){.chip-btn:hover{border-color:var(--accent);color:var(--accent-text)}}
 
 .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 .gallery picture{display:block;position:relative;aspect-ratio:1;overflow:hidden;border-radius:12px;background:var(--ink-100)}
@@ -287,7 +345,7 @@ address{font-style:normal;font-size:14.5px;line-height:1.65;color:var(--ink-700)
 .ask-box button{flex:none;min-height:48px;display:inline-flex;align-items:center;gap:.35rem;padding:0 1.15rem;border:none;border-radius:var(--radius-sm);background:var(--ink-900);color:#fff;font-weight:700;font-size:14.5px;transition:transform .15s ease,background-color .15s ease}
 .ask-box button svg{width:15px;height:15px}
 .ask-box button:active{transform:scale(.96)}
-@media(hover:hover){.ask-box button:hover{background:var(--accent)}}
+@media(hover:hover){.ask-box button:hover{background:var(--accent);color:var(--accent-ink)}}
 .ask-answer{margin-top:.8rem;border-radius:var(--radius-sm);background:var(--ink-50);padding:.85rem;font-size:14.5px;line-height:1.55}
 .ask-hint{margin-top:.6rem;font-size:11.5px;color:var(--ink-400)}
 
@@ -362,7 +420,10 @@ function catalogListHtml(items: PublicPageData['services'], wholesale: boolean):
 }
 
 export function renderMerchantPageHtml(data: PublicPageData, origin: string, now: Date = new Date()): string {
-  const accent = data.profile.accentColor && /^#[0-9a-fA-F]{6}$/.test(data.profile.accentColor) ? data.profile.accentColor : '#c2491d';
+  const accentRgb = (data.profile.accentColor ? parseHex(data.profile.accentColor) : null) ?? parseHex('#c2491d')!;
+  const accent = toHex(accentRgb);
+  const accentInk = inkOn(accentRgb);
+  const accentText = textAccentOn(accentRgb, PAPER);
   const directions = directionsHref(data);
   const description = esc(
     data.profile.tagline ??
@@ -409,7 +470,7 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string, now
 <script type="application/ld+json">${localBusinessJsonLd(data, origin)}</script>
 </head>
 <body>
-<main id="mp-root" data-tenant-id="${attr(data.tenantId)}" data-slug="${attr(data.slug)}" style="--accent:${accent}">
+<main id="mp-root" data-tenant-id="${attr(data.tenantId)}" data-slug="${attr(data.slug)}" style="--accent:${accent};--accent-ink:${accentInk};--accent-text:${accentText}">
   <div class="hero">
     ${hero ?? `<div class="hero-monogram" aria-hidden="true">${monogram}</div>`}
     <div class="hero-scrim" aria-hidden="true"></div>

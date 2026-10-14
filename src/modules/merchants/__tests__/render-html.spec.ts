@@ -384,6 +384,76 @@ describe('renderMerchantPageHtml — content', () => {
     const scriptOf = (html: string) => html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/)?.[1];
     expect(scriptOf(htmlA)).toBe(scriptOf(htmlB));
   });
+
+  describe('accent colour contrast', () => {
+    // Regression: a merchant can type any hex colour into Shop details, with
+    // no brightness restriction. --accent-ink used to be a hardcoded white
+    // and --accent used to be printed directly as text colour - a merchant
+    // who picked a pale colour (butter yellow, baby pink, near-white) got
+    // invisible button/badge text and unreadable offer tags on their own
+    // customer-facing page, with nothing ever catching it.
+    function accentVars(html: string): { accent: string; accentInk: string; accentText: string } {
+      const m = /style="--accent:(#[0-9a-f]{6});--accent-ink:(#[0-9a-f]{6});--accent-text:(#[0-9a-f]{6})"/i.exec(html);
+      if (!m || !m[1] || !m[2] || !m[3]) throw new Error('accent style vars not found');
+      return { accent: m[1], accentInk: m[2], accentText: m[3] };
+    }
+
+    function contrast(a: string, b: string): number {
+      const parse = (hex: string) => {
+        const n = parseInt(hex.slice(1), 16);
+        return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+      };
+      const lum = (c: { r: number; g: number; b: number }) => {
+        const f = (v: number) => {
+          const s = v / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        };
+        return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+      };
+      const la = lum(parse(a));
+      const lb = lum(parse(b));
+      const [hi, lo] = la > lb ? [la, lb] : [lb, la];
+      return (hi + 0.05) / (lo + 0.05);
+    }
+
+    it('picks black ink, not a hardcoded white, for a pale merchant-chosen accent', () => {
+      const html = renderMerchantPageHtml(
+        baseData({ profile: { ...baseData().profile, accentColor: '#FFFACD' } }),
+        'https://example.com',
+      );
+      const { accent, accentInk } = accentVars(html);
+      expect(contrast(accent, accentInk)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('darkens a pale accent before using it as text, instead of leaving it unreadable on the page background', () => {
+      const html = renderMerchantPageHtml(
+        baseData({ profile: { ...baseData().profile, accentColor: '#FFFACD' } }),
+        'https://example.com',
+      );
+      const { accentText } = accentVars(html);
+      expect(contrast(accentText, '#fdfbf6')).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('leaves a merchant-chosen colour that is already readable untouched', () => {
+      const html = renderMerchantPageHtml(
+        baseData({ profile: { ...baseData().profile, accentColor: '#1D4ED8' } }),
+        'https://example.com',
+      );
+      const { accent, accentInk, accentText } = accentVars(html);
+      expect(accent).toBe('#1d4ed8');
+      expect(accentInk).toBe('#ffffff');
+      expect(accentText).toBe('#1d4ed8');
+    });
+
+    it('still picks white ink for a dark accent', () => {
+      const html = renderMerchantPageHtml(
+        baseData({ profile: { ...baseData().profile, accentColor: '#1A1A2E' } }),
+        'https://example.com',
+      );
+      const { accent, accentInk } = accentVars(html);
+      expect(contrast(accent, accentInk)).toBeGreaterThanOrEqual(4.5);
+    });
+  });
 });
 
 describe('CSP hash', () => {
