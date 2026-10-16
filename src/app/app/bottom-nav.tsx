@@ -75,7 +75,7 @@ function IconDots({ active }: IconProps) {
   );
 }
 
-const TABS = [
+export const TABS = [
   { href: '/app', label: 'Home', Icon: IconHome, exact: true },
   { href: '/app/catalog', label: 'Menu', Icon: IconList, exact: false },
   { href: '/app/offers', label: 'Offers', Icon: IconTag, exact: false },
@@ -84,13 +84,18 @@ const TABS = [
   { href: '/app/more', label: 'More', Icon: IconDots, exact: false },
 ] as const;
 
+/**
+ * Primary nav on phones. Hidden at md+ in favour of the Sidebar, which has
+ * room to show labels, the shop name and sign-out without crowding the
+ * screen the way a stretched tab bar would on a laptop.
+ */
 export function BottomNav() {
   const pathname = usePathname();
 
   return (
     <nav
       aria-label="Sections"
-      className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-2xl border-t border-ink-200 bg-[var(--surface)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--surface)]/80"
+      className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-2xl border-t border-ink-200 bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-[backdrop-filter]:bg-[var(--surface)]/80 md:hidden"
     >
       {TABS.map(({ href, label, Icon, exact }) => {
         const active = exact ? pathname === href : pathname.startsWith(href);
