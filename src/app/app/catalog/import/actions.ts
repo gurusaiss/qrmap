@@ -64,6 +64,7 @@ export async function parseImportAction(_prev: ImportFormState, formData: FormDa
 export async function confirmImportAction(
   kind: 'service' | 'product',
   rows: DraftRow[],
+  groupId?: string | null,
 ): Promise<{ error?: string; success?: string }> {
   const { tenantId } = await requireMerchant('catalog:write');
 
@@ -78,6 +79,7 @@ export async function confirmImportAction(
       priceMinor: row.price.trim() ? parseMoneyToMinor(row.price.trim()) : null,
       priceMaxMinor: null,
       priceUnit: row.priceUnit.trim() || null,
+      groupId: groupId || null,
     });
     created++;
   }
