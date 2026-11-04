@@ -20,7 +20,8 @@
     "test:watch": "vitest",
     "test:isolation": "vitest run src/modules/tenancy/__tests__",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
-    "worker": "tsx src/modules/db/worker.ts"
+    "worker": "tsx src/modules/db/worker.ts",
+    "reports:send": "tsx src/modules/notify/send-reports.ts"
   },
   "dependencies": {
     "@tesseract.js-data/eng": "^1.0.0",

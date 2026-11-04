@@ -13,6 +13,7 @@ import {
   getCatalogItem,
   getOffer,
   renameCatalogGroup,
+  reorderCatalog,
   replaceHours,
   updateAiConfig,
   updateCatalogItem,
@@ -226,6 +227,17 @@ export async function toggleCatalogItemAction(itemId: string, isAvailable: boole
 export async function deleteCatalogItemAction(itemId: string): Promise<void> {
   const { tenantId } = await requireMerchant('catalog:write');
   await deleteCatalogItem(tenantId, itemId);
+  await revalidateMerchant(tenantId);
+}
+
+/**
+ * `orderedIds` is the new order for one displayed list (a category's items,
+ * or the uncategorised list) - reorderCatalog() only touches the ids it is
+ * given, so this never disturbs items in a different group.
+ */
+export async function reorderCatalogAction(orderedIds: string[]): Promise<void> {
+  const { tenantId } = await requireMerchant('catalog:write');
+  await reorderCatalog(tenantId, orderedIds);
   await revalidateMerchant(tenantId);
 }
 

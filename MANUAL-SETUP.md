@@ -293,6 +293,72 @@ If you want the full assistant:
 
 ---
 
+## 9b. WhatsApp (monthly merchant report)
+
+On the 1st–3rd of each month the hourly worker (§6) sends each **opted-in** merchant a
+WhatsApp message: how many people opened their page and contacted them last month, the
+change versus the month before, and one tip. Merchants switch it on themselves under
+**Account & security**; it is off by default because WhatsApp requires the recipient's consent.
+
+Nothing is sent until you do the steps below. Until then `WHATSAPP_DRIVER=console` only
+prints messages, so you can test everything for free.
+
+**Why a template:** a business may only START a WhatsApp conversation with a message
+template that Meta has pre-approved. Free text is only allowed inside 24 hours of the
+customer's last message, which never applies to a monthly report.
+
+- [ ] **Create a Meta business account** (business.facebook.com) and complete business
+  verification. Without it WhatsApp limits you to a handful of recipients.
+- [ ] **Add the WhatsApp product** to a Meta developer app and register a **sending phone
+  number**. It must not already be in use on a personal WhatsApp or WhatsApp Business app.
+- [ ] **Create a permanent access token**: Business settings → System users → add a system
+  user → generate a token with the `whatsapp_business_messaging` permission. (The temporary
+  24-hour token from the quickstart page will stop working overnight.)
+- [ ] **Create the message template.** Category **Utility**, language **English** (`en`),
+  name `monthly_report`, body text **exactly**:
+
+  ```
+  Hi! Here is your {{1}} report for {{2}}: your page was opened {{3}} times and {{4}} customers contacted you. Page opens are {{5}} compared with the month before. Tip: {{6}} Open your dashboard to see more.
+  ```
+
+  The parameter order is fixed by the code (`reportTemplateParams` in
+  `src/modules/notify/monthly-report.ts`): 1 = shop name, 2 = month, 3 = page opens,
+  4 = customers who contacted, 5 = change vs the month before, 6 = tip. Wait for approval
+  (usually minutes, sometimes a day). If you change the wording, nothing else needs to change;
+  if you change the number or order of `{{n}}`, the code must change too.
+- [ ] **Set the environment variables** (see `.env.example`):
+
+  ```
+  WHATSAPP_DRIVER=meta
+  WHATSAPP_PHONE_NUMBER_ID=<the phone number ID, not the phone number itself>
+  WHATSAPP_ACCESS_TOKEN=<permanent system-user token>
+  WHATSAPP_REPORT_TEMPLATE=monthly_report
+  WHATSAPP_TEMPLATE_LANG=en
+  ```
+- [ ] **Preview before sending anything real:**
+
+  ```
+  npm run reports:send -- --dry-run
+  ```
+
+  Prints who would get what and sends nothing. Read a few messages aloud.
+- [ ] **Send one real report to yourself first.** Opt in a test merchant whose number is
+  yours and run `npm run reports:send`. (Outside the 1st–3rd window you must run it by hand
+  like this; the scheduled worker only sends inside the window.) A month already sent is
+  never sent again, so to repeat the test pick another test shop or delete its
+  `report_deliveries` row.
+- [ ] Make sure the worker is scheduled hourly (§6). It runs the report job by itself when
+  the date and time (10:00–21:00 IST, 1st–3rd) allow.
+
+**Cost:** Meta charges per delivered utility template, roughly ₹0.12–0.35 per message in
+India (check Meta's current rate card). 1,000 opted-in merchants is about ₹120–350 a month.
+Deliveries are recorded in the `report_deliveries` table (status, attempts, error), so
+failures are queryable: `select * from report_deliveries where status like 'failed%'`.
+
+**If a merchant says they got nothing:** check the table. `failed_permanent` with code
+131026 means the number is not on WhatsApp; 132001 means the template name/language is not
+approved; 190 means the token expired. A temporary failure is retried hourly, up to 3 times.
+
 ## 10. First login and platform admin setup
 
 - [ ] Log in at `/login` → "Sign in with email instead" using the seeded
@@ -436,6 +502,7 @@ genuinely is not, and needs a human with a real browser**:
 - [ ] Migrations run, seed run, admin password changed, admin TOTP enrolled
 - [ ] R2 storage tested with one real photo upload
 - [ ] SMS tested with one real OTP to your own phone
+- [ ] WhatsApp template approved and a real report sent to yourself (§9b) — only if you want monthly reports
 - [ ] `npm run worker` scheduled hourly; nightly backup scheduled and **restored once**
 - [ ] Sentry (or equivalent) receiving real errors
 - [ ] Uptime monitor hitting `/api/health` and a real merchant page

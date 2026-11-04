@@ -56,6 +56,8 @@ const TENANT_TABLES = [
   'subscriptions',
   'tenant_feature_overrides',
   'memberships',
+  'reviews',
+  'report_deliveries',
 ] as const;
 
 let tenantA = '';
@@ -87,6 +89,7 @@ beforeAll(async () => {
       await tx.execute(sql`INSERT INTO business_profiles (tenant_id, tagline) VALUES (${tenantId}, ${`tagline ${label}`})`);
       await tx.execute(sql`INSERT INTO catalog_items (tenant_id, kind, name, price_minor) VALUES (${tenantId}, 'service', ${`${label} secret service`}, 12345)`);
       await tx.execute(sql`INSERT INTO offers (tenant_id, title, is_published) VALUES (${tenantId}, ${`${label} secret offer`}, true)`);
+      await tx.execute(sql`INSERT INTO reviews (tenant_id, rating, comment, status, visitor_hash) VALUES (${tenantId}, 5, ${`${label} secret review`}, 'approved', 'iso')`);
       await tx.execute(sql`INSERT INTO ai_configs (tenant_id, is_enabled) VALUES (${tenantId}, true)`);
       await tx.execute(sql`INSERT INTO qr_codes (tenant_id, token) VALUES (${tenantId}, ${`tok${label.toLowerCase()}${Date.now()}`})`);
     }

@@ -2,11 +2,15 @@ import Link from 'next/link';
 import { requireMerchant } from '@/modules/auth/session-server';
 import { getTenant } from '@/modules/merchants/tenants';
 import { primarySlugFor } from '@/modules/merchants/slugs';
-import { listCatalog, listOffers } from '@/modules/merchants/content';
+import { listCatalog, listCatalogGroups, listOffers } from '@/modules/merchants/content';
 import { summary } from '@/modules/analytics';
 import { env } from '@/modules/core/env';
 import { shouldShowDomainChangeNotice } from '@/modules/platform/settings';
 import { trialStatus } from '@/modules/core/trial';
+import { can } from '@/modules/auth/rbac';
+import { pendingReviewCount } from '@/modules/reviews';
+import { pickVisibleOffer } from '@/modules/core/offers';
+import { buildCatalogShareText, whatsAppShareUrl } from '@/modules/core/share';
 import { ButtonLink, Card, IconChevronRight, Stat } from '@/components/ui';
 import { PublishControls } from './publish-controls';
 import { DomainChangeBanner } from './domain-change-banner';
@@ -19,12 +23,14 @@ export const metadata = { title: 'Your shop' };
  * a merchant should never have to interpret a chart to know how they are doing.
  */
 export default async function DashboardHome() {
-  const { tenantId } = await requireMerchant('profile:read');
-  const [tenant, slug, catalog, offers, stats, showDomainNotice] = await Promise.all([
+  const { tenantId, principal } = await requireMerchant('profile:read');
+  const [tenant, slug, catalog, offers, groups, pendingReviews, stats, showDomainNotice] = await Promise.all([
     getTenant(tenantId),
     primarySlugFor(tenantId),
     listCatalog(tenantId, { includeUnavailable: true }),
     listOffers(tenantId),
+    listCatalogGroups(tenantId),
+    can(principal, 'reviews:read') ? pendingReviewCount(tenantId) : Promise.resolve(0),
     summary(tenantId, 7),
     shouldShowDomainChangeNotice(tenantId),
   ]);
@@ -33,7 +39,34 @@ export default async function DashboardHome() {
   const published = Boolean(tenant?.publishedAt);
   const trial = tenant ? trialStatus(tenant.createdAt) : null;
 
+  const shareUrl = (() => {
+    if (!pageUrl || !tenant) return null;
+    const availableItems = catalog.filter((item) => item.isAvailable);
+    if (availableItems.length === 0) return null;
+    const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
+    const offer = pickVisibleOffer(offers, new Date(), tenant.timezone);
+    const text = buildCatalogShareText({
+      displayName: tenant.displayName,
+      pageUrl,
+      items: availableItems.map((item) => ({
+        name: item.name,
+        priceMinor: item.priceMinor,
+        priceMaxMinor: item.priceMaxMinor,
+        priceUnit: item.priceUnit,
+        groupName: item.groupId ? (groupNameById.get(item.groupId) ?? null) : null,
+      })),
+      offer: offer ? { title: offer.title, description: offer.description } : undefined,
+    });
+    return whatsAppShareUrl(text);
+  })();
+
   const nudges: { text: string; href: string }[] = [];
+  if (pendingReviews > 0) {
+    nudges.push({
+      text: `${pendingReviews} customer ${pendingReviews === 1 ? 'review is' : 'reviews are'} waiting for your approval.`,
+      href: '/app/reviews',
+    });
+  }
   if (catalog.length < 3) {
     nudges.push({ text: 'Add at least three items so customers can see what you offer.', href: '/app/catalog' });
   }
@@ -64,6 +97,11 @@ export default async function DashboardHome() {
               <ButtonLink href="/app/qr" variant="secondary">
                 Get my QR code
               </ButtonLink>
+              {shareUrl && (
+                <ButtonLink href={shareUrl} variant="secondary" target="_blank" rel="noopener">
+                  Share on WhatsApp
+                </ButtonLink>
+              )}
             </div>
           </>
         ) : (

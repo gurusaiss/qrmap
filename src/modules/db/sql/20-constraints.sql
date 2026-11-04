@@ -71,3 +71,18 @@ ALTER TABLE merchant_slugs ADD CONSTRAINT merchant_slugs_format_ck
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_identifier_ck;
 ALTER TABLE users ADD CONSTRAINT users_identifier_ck
   CHECK (phone IS NOT NULL OR email IS NOT NULL);
+
+ALTER TABLE reviews DROP CONSTRAINT IF EXISTS reviews_rating_ck;
+ALTER TABLE reviews ADD CONSTRAINT reviews_rating_ck CHECK (rating BETWEEN 1 AND 5);
+ALTER TABLE reviews DROP CONSTRAINT IF EXISTS reviews_text_len_ck;
+ALTER TABLE reviews ADD CONSTRAINT reviews_text_len_ck
+  CHECK (char_length(coalesce(author_name, '')) <= 60 AND char_length(coalesce(comment, '')) <= 500);
+
+ALTER TABLE reviews DROP CONSTRAINT IF EXISTS reviews_reply_len_ck;
+ALTER TABLE reviews ADD CONSTRAINT reviews_reply_len_ck CHECK (char_length(coalesce(reply, '')) <= 500);
+
+ALTER TABLE report_deliveries DROP CONSTRAINT IF EXISTS report_deliveries_status_ck;
+ALTER TABLE report_deliveries ADD CONSTRAINT report_deliveries_status_ck
+  CHECK (status IN ('sending', 'sent', 'failed', 'failed_permanent'));
+ALTER TABLE report_deliveries DROP CONSTRAINT IF EXISTS report_deliveries_period_ck;
+ALTER TABLE report_deliveries ADD CONSTRAINT report_deliveries_period_ck CHECK (period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$');

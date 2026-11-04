@@ -303,13 +303,19 @@ section.card-section>h2 svg{width:14px;height:14px;opacity:.8;flex:none}
 
 .catalog-list{margin:0;padding:0}
 .catalog-group:not(:first-child){border-top:1px solid var(--ink-100)}
+.catalog-group{scroll-margin-top:.75rem}
+.cat-nav{display:flex;gap:.5rem;overflow-x:auto;margin:0;padding:.75rem 1rem;scrollbar-width:none}
+.cat-nav::-webkit-scrollbar{display:none}
+.cat-nav a{flex:none;display:inline-flex;align-items:center;height:36px;padding:0 .9rem;border-radius:999px;border:1.5px solid var(--ink-200);background:var(--card);font-size:13px;font-weight:600;color:var(--ink-700);text-decoration:none}
+.cat-nav a:active{transform:scale(.96)}
+html{scroll-behavior:smooth}
 .catalog-group-heading{margin:0;padding:.75rem 1rem .4rem;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-400);background:var(--ink-50)}
 .catalog-list li{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 1rem;border-bottom:1px solid var(--ink-100);transition:background-color .15s ease}
 .catalog-list li:last-child{border-bottom:none}
 @media(hover:hover){.catalog-list li:hover{background:var(--ink-50)}}
 .row-main{display:flex;gap:.7rem;align-items:flex-start;min-width:0}
 .min-w-0{min-width:0}
-.catalog-thumb{display:block;flex:none;width:52px;height:52px;border-radius:11px;overflow:hidden;background:var(--ink-100)}
+.catalog-thumb{display:block;flex:none;width:64px;height:64px;border-radius:12px;overflow:hidden;background:var(--ink-100)}
 .catalog-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .catalog-name{font-weight:600;font-size:15.5px}
 .catalog-desc{margin:.2rem 0 0;font-size:13.5px;color:var(--ink-500);line-height:1.5}
@@ -350,6 +356,27 @@ address{font-style:normal;font-size:14.5px;line-height:1.65;color:var(--ink-700)
 @media(hover:hover){.ask-box button:hover{background:var(--accent);color:var(--accent-ink)}}
 .ask-answer{margin-top:.8rem;border-radius:var(--radius-sm);background:var(--ink-50);padding:.85rem;font-size:14.5px;line-height:1.55}
 .ask-hint{margin-top:.6rem;font-size:11.5px;color:var(--ink-400)}
+
+.review-summary{display:flex;align-items:baseline;gap:.5rem;margin:0 0 .7rem;font-size:14px;color:var(--ink-500)}
+.review-summary strong{font-size:1.6rem;line-height:1;color:var(--ink-900);font-variant-numeric:tabular-nums}
+.stars{color:var(--accent-text,var(--accent));letter-spacing:.08em;white-space:nowrap}
+.review-list{margin:0;padding:0}
+.review-list li{list-style:none;padding:.85rem 1rem;border-bottom:1px solid var(--ink-100)}
+.review-list li:last-child{border-bottom:none}
+.review-meta{margin:0;font-size:13px;color:var(--ink-500)}
+.review-text{margin:.3rem 0 0;font-size:14.5px;line-height:1.55;white-space:pre-line}
+.review-reply{margin:.6rem 0 0;padding:.6rem .8rem;border-left:3px solid var(--accent);background:var(--ink-50);border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.review-reply-label{margin:0;font-size:12px;font-weight:700;color:var(--ink-500)}
+.review-reply .review-text{margin-top:.15rem;font-size:14px}
+.review-form{margin-top:.8rem}
+.review-form summary{cursor:pointer;font-weight:700;font-size:14px;color:var(--ink-700);padding:.5rem 0}
+.review-form form{display:grid;gap:.6rem;margin-top:.5rem}
+.review-form label{display:grid;gap:.25rem;font-size:13px;font-weight:600;color:var(--ink-700)}
+.review-form input,.review-form select,.review-form textarea{font:inherit;font-size:16px;font-weight:400;border:1.5px solid var(--ink-200);border-radius:var(--radius-sm);padding:.6rem .8rem;background:var(--paper);min-height:44px}
+.review-form textarea{min-height:90px;resize:vertical}
+.review-form button{min-height:48px;border:none;border-radius:var(--radius-sm);background:var(--ink-900);color:#fff;font-weight:700;font-size:14.5px}
+.review-form .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.review-note{margin:0;font-size:11.5px;color:var(--ink-400)}
 
 footer{margin-top:3rem;padding:1.6rem 1.1rem 2.5rem;text-align:center;font-size:12.5px;color:var(--ink-400);border-top:1px solid var(--ink-100)}
 footer a{color:inherit;text-decoration-color:var(--ink-200)}
@@ -440,7 +467,7 @@ function catalogItemLi(item: PublicPageData['services'][number], wholesale: bool
  * item that existed before this feature), every item's groupName is null and
  * this renders byte-identical to the old flat list.
  */
-function catalogListHtml(items: PublicPageData['services'], wholesale: boolean): string {
+function catalogListHtml(items: PublicPageData['services'], wholesale: boolean, anchorKey = 'a'): string {
   const buckets = new Map<string | null, PublicPageData['services']>();
   for (const item of items) {
     const bucket = buckets.get(item.groupName);
@@ -453,13 +480,73 @@ function catalogListHtml(items: PublicPageData['services'], wholesale: boolean):
 
   if (buckets.size <= 1) return listFor(items);
 
-  return [...buckets.entries()]
-    .map(([groupName, list]) =>
-      groupName
-        ? `<div class="catalog-group"><h3 class="catalog-group-heading">${esc(groupName)}</h3>${listFor(list)}</div>`
-        : `<div class="catalog-group">${listFor(list)}</div>`,
-    )
-    .join('');
+  const entries = [...buckets.entries()];
+  const named = entries.filter(([groupName]) => groupName);
+  const nav =
+    named.length >= 2
+      ? `<nav class="cat-nav" aria-label="Categories">${named
+          .map(([groupName], i) => `<a href="#cat-${anchorKey}-${i}">${esc(groupName as string)}</a>`)
+          .join('')}</nav>`
+      : '';
+
+  let namedIndex = 0;
+  return (
+    nav +
+    entries
+      .map(([groupName, list]) =>
+        groupName
+          ? `<div class="catalog-group" id="cat-${anchorKey}-${namedIndex++}"><h3 class="catalog-group-heading">${esc(groupName)}</h3>${listFor(list)}</div>`
+          : `<div class="catalog-group">${listFor(list)}</div>`,
+      )
+      .join('')
+  );
+}
+
+function starsHtml(rating: number): string {
+  return `<span class="stars" role="img" aria-label="${rating} out of 5">${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}</span>`;
+}
+
+function reviewsSectionHtml(data: PublicPageData): string {
+  if (!data.reviewsEnabled) return '';
+  const { reviews } = data;
+  const dateFmt = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const summary =
+    reviews.count > 0 && reviews.average !== null
+      ? `<p class="review-summary"><strong>${reviews.average.toFixed(1)}</strong> ${starsHtml(Math.round(reviews.average))} <span>${reviews.count} ${reviews.count === 1 ? 'review' : 'reviews'}</span></p>`
+      : '';
+  const list =
+    reviews.items.length > 0
+      ? `<ul class="card review-list">${reviews.items
+          .map(
+            (r) => `<li><p class="review-meta">${starsHtml(r.rating)} · <strong>${esc(r.authorName ?? 'A customer')}</strong> · ${esc(dateFmt.format(r.createdAt))}</p>${r.comment ? `<p class="review-text">${esc(r.comment)}</p>` : ''}${r.reply ? `<div class="review-reply"><p class="review-reply-label">Reply from ${esc(data.displayName)}</p><p class="review-text">${esc(r.reply)}</p></div>` : ''}</li>`,
+          )
+          .join('')}</ul>`
+      : '';
+  return `<section class="card-section" id="reviews">
+    <h2>${ICON_STAR}Reviews</h2>
+    ${summary}${list}
+    <details class="review-form">
+      <summary>Write a review</summary>
+      <form method="post" action="/api/reviews">
+        <input type="hidden" name="slug" value="${attr(data.slug)}">
+        <label>Your rating
+          <select name="rating" required>
+            <option value="">Choose…</option>
+            <option value="5">5 – Excellent</option>
+            <option value="4">4 – Good</option>
+            <option value="3">3 – Okay</option>
+            <option value="2">2 – Poor</option>
+            <option value="1">1 – Terrible</option>
+          </select>
+        </label>
+        <label>Your name (optional)<input name="name" maxlength="60" autocomplete="given-name"></label>
+        <label>Your review (optional)<textarea name="comment" maxlength="500"></textarea></label>
+        <div class="hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
+        <button type="submit">Submit review</button>
+        <p class="review-note">Reviews appear after the shop approves them.</p>
+      </form>
+    </details>
+  </section>`;
 }
 
 export function renderMerchantPageHtml(data: PublicPageData, origin: string, now: Date = new Date()): string {
@@ -586,13 +673,13 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string, now
 
   ${
     data.services.length > 0
-      ? `<section class="card-section"><h2>${data.templateKey === 'menu' ? 'Menu' : 'Services'}</h2><div class="card">${catalogListHtml(data.services, false)}</div></section>`
+      ? `<section class="card-section"><h2>${data.templateKey === 'menu' ? 'Menu' : 'Services'}</h2><div class="card">${catalogListHtml(data.services, false, 's')}</div></section>`
       : ''
   }
 
   ${
     data.products.length > 0
-      ? `<section class="card-section"><h2>Products</h2><div class="card">${catalogListHtml(data.products, data.templateKey === 'wholesale')}</div></section>`
+      ? `<section class="card-section"><h2>Products</h2><div class="card">${catalogListHtml(data.products, data.templateKey === 'wholesale', 'p')}</div></section>`
       : ''
   }
 
@@ -632,6 +719,8 @@ export function renderMerchantPageHtml(data: PublicPageData, origin: string, now
   </section>`
       : ''
   }
+
+  ${reviewsSectionHtml(data)}
 
   ${
     data.aiEnabled

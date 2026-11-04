@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import Link from 'next/link';
 import { Button, ErrorText, Field, Input, Select, SuccessText } from '@/components/ui';
 import { updateCatalogItemAction, type FormState } from '../../actions';
+import { PhotoPicker } from '../photo-picker';
 
 const initial: FormState = {};
 
@@ -125,10 +126,10 @@ export function EditCatalogItemForm({
             </label>
           </div>
         )}
-        <input type="file" name="photo" accept="image/*" className="w-full text-[14px]" />
-        <p className="mt-1 text-[12px] text-ink-400">
-          {currentPhotoUrl ? 'Choose a new file to replace it.' : 'Up to 12MB. JPG, PNG, WebP or AVIF.'}
-        </p>
+        <PhotoPicker
+          name="photo"
+          hint={currentPhotoUrl ? 'Choose a new file to replace it.' : 'Up to 12MB. JPG, PNG, WebP or AVIF.'}
+        />
       </Field>
 
       <Button type="submit" disabled={pending} className="w-full">

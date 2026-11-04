@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withSystem } from '../../tenancy';
 import { closeDb, schema } from '../../db/client';
 import { principalFromSession, resolveSession, startImpersonation } from '../service';
@@ -7,6 +7,17 @@ import { principalFromSession, resolveSession, startImpersonation } from '../ser
 const CTX = { ip: '127.0.0.1', userAgent: 'vitest' };
 const ACTOR_ADMIN_USER_ID = '00000000-0000-4000-8000-0000000000f3';
 const DISPLAY_NAME_PREFIX = 'impersonation-spec-tenant-';
+
+// sessions.impersonated_by is a real FK to users.id - this fixed actor id
+// must exist before any session row can reference it.
+beforeAll(async () => {
+  await withSystem(({ tx }) =>
+    tx
+      .insert(schema.users)
+      .values({ id: ACTOR_ADMIN_USER_ID, email: 'impersonation-spec-admin@test.invalid', fullName: 'impersonation-spec-admin' })
+      .onConflictDoNothing(),
+  );
+});
 
 async function createTenant(): Promise<string> {
   const [tenant] = await withSystem(({ tx }) =>

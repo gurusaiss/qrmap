@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 import { Button, ErrorText, Field, Input, Select, SuccessText } from '@/components/ui';
 import { createCatalogItemAction, type FormState } from '../actions';
+import { PhotoPicker } from './photo-picker';
 
 const initial: FormState = {};
 const MAX_PHOTO_MB = 12;
@@ -84,8 +85,7 @@ export function CatalogForm({
       </label>
 
       <Field label="Photo" hint="Optional — shown next to this item on your page">
-        <input type="file" name="photo" accept="image/*" className="w-full text-[14px]" />
-        <p className="mt-1 text-[12px] text-ink-400">Up to {MAX_PHOTO_MB}MB. JPG, PNG, WebP or AVIF.</p>
+        <PhotoPicker name="photo" hint={`Up to ${MAX_PHOTO_MB}MB. JPG, PNG, WebP or AVIF.`} />
       </Field>
 
       {kind === 'service' ? (

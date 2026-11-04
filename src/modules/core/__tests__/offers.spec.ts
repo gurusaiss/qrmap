@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { offerStatus, isPubliclyVisible, describeValidity, type OfferSchedule } from '../offers';
+import { offerStatus, isPubliclyVisible, describeValidity, pickVisibleOffer, type OfferSchedule } from '../offers';
 
 const IST = 'Asia/Kolkata';
 
@@ -13,6 +13,10 @@ function schedule(overrides: Partial<OfferSchedule> = {}): OfferSchedule {
     activeWeekdays: null,
     ...overrides,
   };
+}
+
+function namedOffer(id: string, overrides: Partial<OfferSchedule & { isFeatured: boolean }> = {}) {
+  return { id, isFeatured: false, ...schedule(overrides), ...overrides };
 }
 
 /** 2026-09-16 is a Wednesday. 12:00 IST == 06:30 UTC. */
@@ -118,6 +122,27 @@ describe('isPubliclyVisible', () => {
     for (const s of ['draft', 'upcoming', 'expired', 'inactive_now'] as const) {
       expect(isPubliclyVisible(s)).toBe(false);
     }
+  });
+});
+
+describe('pickVisibleOffer', () => {
+  it('picks the featured offer over an earlier non-featured one', () => {
+    const offers = [namedOffer('a'), namedOffer('b', { isFeatured: true })];
+    expect(pickVisibleOffer(offers, wedNoonIST, IST)?.id).toBe('b');
+  });
+
+  it('falls back to the first visible offer when none is featured', () => {
+    const offers = [namedOffer('a'), namedOffer('b')];
+    expect(pickVisibleOffer(offers, wedNoonIST, IST)?.id).toBe('a');
+  });
+
+  it('ignores draft, expired and not-yet-active offers', () => {
+    const offers = [
+      namedOffer('draft', { isPublished: false }),
+      namedOffer('expired', { endsAt: new Date('2020-01-01T00:00:00Z') }),
+      namedOffer('upcoming', { startsAt: new Date('2099-01-01T00:00:00Z') }),
+    ];
+    expect(pickVisibleOffer(offers, wedNoonIST, IST)).toBeNull();
   });
 });
 

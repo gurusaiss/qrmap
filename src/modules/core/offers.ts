@@ -51,6 +51,19 @@ export function isArchived(status: OfferStatus): boolean {
   return status === 'expired';
 }
 
+/**
+ * The one offer worth leading with right now: the featured visible offer, or
+ * else the first visible one, or null if nothing is currently active.
+ */
+export function pickVisibleOffer<T extends OfferSchedule & { isFeatured: boolean }>(
+  offers: T[],
+  now: Date,
+  timeZone: string,
+): T | null {
+  const visible = offers.filter((o) => isPubliclyVisible(offerStatus(o, now, timeZone)));
+  return visible.find((o) => o.isFeatured) ?? visible[0] ?? null;
+}
+
 export function describeValidity(
   offer: OfferSchedule,
   status: OfferStatus,

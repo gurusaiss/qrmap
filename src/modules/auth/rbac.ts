@@ -26,6 +26,7 @@ export type Action =
   | 'hours:write'
   | 'qr:read' | 'qr:download'
   | 'analytics:read'
+  | 'reviews:read' | 'reviews:moderate'
   | 'ai:configure'
   | 'members:read' | 'members:write'
   | 'billing:read' | 'billing:write'
@@ -45,12 +46,14 @@ const MERCHANT_PERMISSIONS: Record<MerchantRole, ReadonlySet<Action>> = {
     'profile:read', 'profile:write', 'catalog:read', 'catalog:write', 'catalog:toggle',
     'offers:read', 'offers:write', 'media:read', 'media:write', 'hours:write',
     'qr:read', 'qr:download', 'analytics:read', 'ai:configure', 'members:read',
+    'reviews:read', 'reviews:moderate',
   ]),
   owner: new Set<Action>([
     'profile:read', 'profile:write', 'catalog:read', 'catalog:write', 'catalog:toggle',
     'offers:read', 'offers:write', 'media:read', 'media:write', 'hours:write',
     'qr:read', 'qr:download', 'analytics:read', 'ai:configure',
     'members:read', 'members:write', 'billing:read', 'billing:write', 'tenant:delete',
+    'reviews:read', 'reviews:moderate',
   ]),
 };
 

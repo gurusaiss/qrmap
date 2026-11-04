@@ -51,8 +51,14 @@ export default async function CategoryPage({ params }: { params: Promise<{ group
             body="Add your first item above — it appears on your page immediately."
           />
         ) : (
-          items.map((item) => (
-            <CatalogItemRow key={item.id} item={item} photoUrl={photoUrlFor(item.mediaId)} />
+          items.map((item, index) => (
+            <CatalogItemRow
+              key={item.id}
+              item={item}
+              photoUrl={photoUrlFor(item.mediaId)}
+              siblingIds={items.map((i) => i.id)}
+              position={{ index, count: items.length }}
+            />
           ))
         )}
       </div>

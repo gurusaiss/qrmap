@@ -1,20 +1,24 @@
 import type { Metadata, Viewport } from 'next';
-import { Source_Serif_4 } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 
 /**
- * Self-hosted at build time (next/font downloads once during `next build` and
- * serves it from our own origin - no third-party request at runtime, no
- * layout-shift flash, fully cached). Used for headings only, across the
- * dashboard/admin/login/home. The public merchant page never loads this: it
- * is a separate hand-rendered Route Handler outside this layout entirely, and
- * deliberately stays on system fonts only (docs/03-ARCHITECTURE.md §F).
+ * Bundled in the repo (src/app/fonts, SIL OFL licence alongside) rather than
+ * fetched from Google at build time: `next build` must work inside Docker, CI
+ * and behind proxies with no outbound access to fonts.googleapis.com. Used for
+ * headings only, across the dashboard/admin/login/home. The public merchant
+ * page never loads this: it is a separate hand-rendered Route Handler outside
+ * this layout entirely, and deliberately stays on system fonts only
+ * (docs/03-ARCHITECTURE.md §F).
  */
-const displaySerif = Source_Serif_4({
-  subsets: ['latin'],
-  weight: ['600', '700'],
+const displaySerif = localFont({
+  src: [
+    { path: './fonts/source-serif-4-latin-600-normal.woff2', weight: '600', style: 'normal' },
+    { path: './fonts/source-serif-4-latin-700-normal.woff2', weight: '700', style: 'normal' },
+  ],
   variable: '--font-display',
   display: 'swap',
+  fallback: ['Georgia', 'serif'],
 });
 
 export const metadata: Metadata = {

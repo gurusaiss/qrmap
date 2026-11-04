@@ -53,6 +53,7 @@ export const catalogKind = pgEnum('catalog_kind', ['service', 'product']);
 export const stockStatus = pgEnum('stock_status', ['in_stock', 'low', 'out', 'made_to_order']);
 export const discountType = pgEnum('discount_type', ['percent', 'flat', 'bogo', 'custom']);
 export const ctaType = pgEnum('cta_type', ['none', 'call', 'whatsapp', 'directions', 'link']);
+export const reviewStatus = pgEnum('review_status', ['pending', 'approved', 'hidden']);
 export const mediaKind = pgEnum('media_kind', ['logo', 'cover', 'gallery', 'catalog', 'offer']);
 export const deviceClass = pgEnum('device_class', ['mobile', 'tablet', 'desktop', 'unknown']);
 export const referrerClass = pgEnum('referrer_class', ['qr', 'direct', 'search', 'social', 'other']);
@@ -304,6 +305,10 @@ export const businessProfiles = pgTable('business_profiles', {
     .references(() => tenants.id, { onDelete: 'cascade' }),
   tagline: text('tagline'),
   description: text('description'),
+  /** Merchant switch: false hides the whole reviews section and refuses new submissions. */
+  reviewsEnabled: boolean('reviews_enabled').notNull().default(true),
+  /** Opt-in (Meta requires consent): send the monthly report to the owner on WhatsApp. */
+  monthlyReportWhatsapp: boolean('monthly_report_whatsapp').notNull().default(false),
   logoMediaId: uuid('logo_media_id'),
   coverMediaId: uuid('cover_media_id'),
   phone: text('phone'),
@@ -458,6 +463,31 @@ export const catalogItems = pgTable(
       name: 'catalog_items_media_fk',
     }).onDelete('set null'),
   ],
+);
+
+/**
+ * Customer reviews: submitted anonymously from the public page, invisible
+ * until the merchant approves them. Never deleted - 'hidden' is the removal.
+ */
+export const reviews = pgTable(
+  'reviews',
+  {
+    id: pk(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    rating: smallint('rating').notNull(),
+    authorName: text('author_name'),
+    comment: text('comment'),
+    /** The merchant's public reply, shown under the review once it is approved. */
+    reply: text('reply'),
+    repliedAt: timestamp('replied_at', { withTimezone: true }),
+    status: reviewStatus('status').notNull().default('pending'),
+    visitorHash: text('visitor_hash').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('reviews_tenant_status_idx').on(t.tenantId, t.status, t.createdAt)],
 );
 
 /**
@@ -735,6 +765,32 @@ export const outbox = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index('outbox_pending_idx').on(t.runAfter).where(sql`${t.completedAt} IS NULL`)],
+);
+
+/**
+ * One row per (shop, month, channel) report we have tried to send. The unique
+ * key is what makes sending idempotent: a worker that runs every hour can
+ * never send the same month's report twice. Written by the system role only.
+ */
+export const reportDeliveries = pgTable(
+  'report_deliveries',
+  {
+    id: pk(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    /** 'YYYY-MM' of the month the report covers. */
+    period: text('period').notNull(),
+    channel: text('channel').notNull().default('whatsapp'),
+    status: text('status').notNull(),
+    attempts: integer('attempts').notNull().default(1),
+    provider: text('provider'),
+    providerMessageId: text('provider_message_id'),
+    lastError: text('last_error'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex('report_deliveries_tenant_period_channel_key').on(t.tenantId, t.period, t.channel)],
 );
 
 /**

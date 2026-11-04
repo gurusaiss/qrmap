@@ -64,6 +64,8 @@ function baseData(overrides: Partial<PublicPageData> = {}): PublicPageData {
       { day: 'Sunday', dayOfWeek: 0, windows: [] },
     ],
     heroOffer: null,
+    reviews: { count: 0, average: null, items: [] },
+    reviewsEnabled: true,
     offers: [],
     services: [],
     products: [],
@@ -250,6 +252,109 @@ describe('renderMerchantPageHtml — content', () => {
       const hairIndex = html.indexOf('Haircut');
       const nailsHeadingIndex = html.indexOf('class="catalog-group-heading">Nails');
       expect(hairIndex).toBeLessThan(nailsHeadingIndex);
+    });
+
+    it('adds a jump bar linking to each category when there are two or more', () => {
+      const html = renderMerchantPageHtml(
+        baseData({
+          services: [
+            catalogItem({ id: 's1', name: 'Haircut', groupName: 'Hair' }),
+            catalogItem({ id: 's2', name: 'Manicure', groupName: 'Nails' }),
+          ],
+        }),
+        'https://example.com',
+      );
+      expect(html).toContain('<nav class="cat-nav"');
+      expect(html).toContain('<a href="#cat-s-0">Hair</a>');
+      expect(html).toContain('<a href="#cat-s-1">Nails</a>');
+      expect(html).toContain('id="cat-s-0"');
+      expect(html).toContain('id="cat-s-1"');
+    });
+
+    it('shows no jump bar for a single category or none, and escapes category names', () => {
+      const none = renderMerchantPageHtml(baseData({ services: [catalogItem({ id: 's1', name: 'Haircut' })] }), 'https://example.com');
+      expect(none).not.toContain('<nav class="cat-nav"');
+
+      const one = renderMerchantPageHtml(
+        baseData({
+          services: [
+            catalogItem({ id: 's1', name: 'Haircut', groupName: 'Hair' }),
+            catalogItem({ id: 's2', name: 'Consultation' }),
+          ],
+        }),
+        'https://example.com',
+      );
+      expect(one).not.toContain('<nav class="cat-nav"');
+
+      const evil = renderMerchantPageHtml(
+        baseData({
+          services: [
+            catalogItem({ id: 's1', name: 'A', groupName: '<script>alert(1)</script>' }),
+            catalogItem({ id: 's2', name: 'B', groupName: 'Nails' }),
+          ],
+        }),
+        'https://example.com',
+      );
+      expect(evil).not.toContain('<script>alert(1)</script>');
+    });
+  });
+
+  describe('reviews', () => {
+    it('always offers the no-JS review form, with a honeypot and the shop slug', () => {
+      const html = renderMerchantPageHtml(baseData(), 'https://example.com');
+      expect(html).toContain('<form method="post" action="/api/reviews">');
+      expect(html).toContain('name="slug" value="sharma-hair-salon"');
+      expect(html).toContain('name="website"');
+      expect(html).not.toContain('class="review-summary"');
+    });
+
+    it('renders no reviews section or form when the merchant switched reviews off', () => {
+      const html = renderMerchantPageHtml(
+        baseData({
+          reviewsEnabled: false,
+          reviews: { count: 1, average: 5, items: [{ id: 'r', rating: 5, authorName: 'A', comment: 'hi', reply: null, createdAt: new Date() }] },
+        }),
+        'https://example.com',
+      );
+      expect(html).not.toContain('id="reviews"');
+      expect(html).not.toContain('action="/api/reviews"');
+    });
+
+    it("shows the shop's reply under a review, escaped, and nothing when there is none", () => {
+      const item = (reply: string | null) => ({
+        id: 'r1', rating: 4, authorName: 'Ravi', comment: 'Good', reply, createdAt: new Date('2026-01-05T00:00:00Z'),
+      });
+      const withReply = renderMerchantPageHtml(
+        baseData({ reviews: { count: 1, average: 4, items: [item('Thanks <img src=x onerror=alert(1)>')] } }),
+        'https://example.com',
+      );
+      expect(withReply).toContain('Reply from Sharma Hair Salon');
+      expect(withReply).toContain('Thanks &lt;img src=x onerror=alert(1)&gt;');
+      expect(withReply).not.toContain('<img src=x onerror');
+
+      const without = renderMerchantPageHtml(baseData({ reviews: { count: 1, average: 4, items: [item(null)] } }), 'https://example.com');
+      expect(without).not.toContain('class="review-reply"');
+    });
+
+    it('shows the average, count and approved reviews, escaped', () => {
+      const html = renderMerchantPageHtml(
+        baseData({
+          reviews: {
+            count: 2,
+            average: 4.5,
+            items: [
+              { id: 'r1', rating: 5, authorName: '<b>Asha</b>', comment: '<script>evil()</script>', reply: null, createdAt: new Date('2026-01-05T00:00:00Z') },
+              { id: 'r2', rating: 4, authorName: null, comment: null, reply: null, createdAt: new Date('2026-01-04T00:00:00Z') },
+            ],
+          },
+        }),
+        'https://example.com',
+      );
+      expect(html).toContain('<strong>4.5</strong>');
+      expect(html).toContain('2 reviews');
+      expect(html).toContain('A customer');
+      expect(html).toContain('&lt;b&gt;Asha&lt;/b&gt;');
+      expect(html).not.toContain('<script>evil()</script>');
     });
   });
 

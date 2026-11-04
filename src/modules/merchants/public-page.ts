@@ -12,6 +12,7 @@ import { evaluateOpenState, formatWeek, type HoursRow, type OpenState } from '..
 import { isPubliclyVisible, offerStatus, describeValidity, type OfferStatus } from '../core/offers';
 import { resolveSlug } from './slugs';
 import { effectiveFeatureEnabled } from '../platform/features';
+import { loadPublicReviews, type PublicReviews } from '../reviews';
 
 export type PublicOffer = {
   id: string;
@@ -80,6 +81,8 @@ export type PublicPageData = {
   openState: OpenState;
   week: { day: string; dayOfWeek: number; windows: string[] }[];
   heroOffer: PublicOffer | null;
+  reviews: PublicReviews;
+  reviewsEnabled: boolean;
   offers: PublicOffer[];
   services: PublicCatalogItem[];
   products: PublicCatalogItem[];
@@ -332,6 +335,8 @@ export async function loadPublicPage(slug: string, now = new Date()): Promise<Pu
       ),
       week: formatWeek(hours),
       heroOffer,
+      reviews: await loadPublicReviews(tx, tenantId),
+      reviewsEnabled: profile?.reviewsEnabled ?? true,
       offers: restOffers,
       services: catalogRows.filter((r) => r.kind === 'service').map(toPublicItem),
       products: catalogRows.filter((r) => r.kind === 'product').map(toPublicItem),

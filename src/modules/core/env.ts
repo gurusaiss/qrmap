@@ -42,6 +42,15 @@ const schema = z.object({
   SMS_DRIVER: z.enum(['console', 'msg91']).default('console'),
   MSG91_AUTH_KEY: z.string().optional(),
   MSG91_SENDER_ID: z.string().optional(),
+
+  /** console prints the message; meta sends via the WhatsApp Business Cloud API. */
+  WHATSAPP_DRIVER: z.enum(['console', 'meta']).default('console'),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  /** Name of the approved message template (see MANUAL-SETUP.md for its exact text). */
+  WHATSAPP_REPORT_TEMPLATE: z.string().default('monthly_report'),
+  WHATSAPP_TEMPLATE_LANG: z.string().default('en'),
+  WHATSAPP_API_VERSION: z.string().default('v21.0'),
 });
 
 export type Env = z.infer<typeof schema>;

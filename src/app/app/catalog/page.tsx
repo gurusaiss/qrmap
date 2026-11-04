@@ -84,8 +84,14 @@ export default async function CatalogPage() {
             body="Add your first service or product above — it appears on your page immediately."
           />
         ) : (
-          uncategorised.map((item) => (
-            <CatalogItemRow key={item.id} item={item} photoUrl={photoUrlFor(item.mediaId)} />
+          uncategorised.map((item, index) => (
+            <CatalogItemRow
+              key={item.id}
+              item={item}
+              photoUrl={photoUrlFor(item.mediaId)}
+              siblingIds={uncategorised.map((i) => i.id)}
+              position={{ index, count: uncategorised.length }}
+            />
           ))
         )}
       </div>

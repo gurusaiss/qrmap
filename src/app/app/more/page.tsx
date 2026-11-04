@@ -59,6 +59,14 @@ function IconSparkle({ className = 'h-5 w-5' }: IconProps) {
   );
 }
 
+function IconStar({ className = 'h-5 w-5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path d="m10 3 2 4.2 4.6.6-3.3 3.2.8 4.6L10 13.3l-4.1 2.3.8-4.6-3.3-3.2 4.6-.6L10 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function IconLogout({ className = 'h-5 w-5' }: IconProps) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
@@ -88,6 +96,7 @@ export default async function MorePage() {
       <PageHeader title="More" />
       <div className="space-y-2.5">
         <MenuRow href="/app/profile" icon={<IconShop />} label="Shop details" />
+        {can(principal, 'reviews:read') && <MenuRow href="/app/reviews" icon={<IconStar />} label="Customer reviews" />}
         {can(principal, 'ai:configure') && <MenuRow href="/app/ai" icon={<IconSparkle />} label="AI assistant" />}
         {can(principal, 'members:read') && <MenuRow href="/app/team" icon={<IconUsers />} label="Team" />}
         {can(principal, 'billing:read') && <MenuRow href="/app/plan" icon={<IconCard />} label="Plan & billing" />}

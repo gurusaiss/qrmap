@@ -4,7 +4,7 @@ import { useTransition } from 'react';
 import Link from 'next/link';
 import { Badge, Button } from '@/components/ui';
 import { formatPriceRange } from '@/modules/core/money';
-import { deleteCatalogItemAction, toggleCatalogItemAction } from '../actions';
+import { deleteCatalogItemAction, reorderCatalogAction, toggleCatalogItemAction } from '../actions';
 
 type Item = {
   id: string;
@@ -30,9 +30,32 @@ const STOCK_TONE: Record<string, 'warning' | 'neutral'> = {
   made_to_order: 'neutral',
 };
 
-export function CatalogItemRow({ item, photoUrl }: { item: Item; photoUrl: string | null }) {
+export function CatalogItemRow({
+  item,
+  photoUrl,
+  siblingIds,
+  position,
+}: {
+  item: Item;
+  photoUrl: string | null;
+  /** The full ordered id list of the list this row belongs to (a category, or "uncategorised"). */
+  siblingIds?: string[];
+  position?: { index: number; count: number };
+}) {
   const [pending, start] = useTransition();
   const stockLabel = item.stockStatus ? STOCK_LABEL[item.stockStatus] : null;
+
+  const move = (direction: -1 | 1) => {
+    if (!siblingIds) return;
+    const from = position!.index;
+    const to = from + direction;
+    if (to < 0 || to >= siblingIds.length) return;
+    const reordered = [...siblingIds];
+    const [moved] = reordered.splice(from, 1);
+    if (moved === undefined) return;
+    reordered.splice(to, 0, moved);
+    start(() => void reorderCatalogAction(reordered));
+  };
 
   return (
     <div className="card flex items-start gap-3 p-3">
@@ -69,6 +92,28 @@ export function CatalogItemRow({ item, photoUrl }: { item: Item; photoUrl: strin
         )}
 
         <div className="mt-2 flex items-center gap-2">
+          {siblingIds && position && (
+            <>
+              <button
+                type="button"
+                aria-label="Move up"
+                disabled={pending || position.index === 0}
+                onClick={() => move(-1)}
+                className="tap-target rounded-[var(--radius-sm)] px-2 text-ink-500 transition-colors hover:bg-ink-100 disabled:opacity-30"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                aria-label="Move down"
+                disabled={pending || position.index === position.count - 1}
+                onClick={() => move(1)}
+                className="tap-target rounded-[var(--radius-sm)] px-2 text-ink-500 transition-colors hover:bg-ink-100 disabled:opacity-30"
+              >
+                ↓
+              </button>
+            </>
+          )}
           <Button
             variant="ghost"
             disabled={pending}

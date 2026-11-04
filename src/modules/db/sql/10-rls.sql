@@ -19,7 +19,7 @@ CREATE OR REPLACE FUNCTION _tenant_tables() RETURNS text[] AS $$
     'catalog_groups', 'catalog_items', 'offers', 'qr_codes',
     'analytics_events', 'analytics_daily',
     'ai_configs', 'ai_conversations', 'ai_messages', 'ai_answer_cache',
-    'subscriptions'
+    'subscriptions', 'reviews'
   ]
 $$ LANGUAGE sql IMMUTABLE;
 
@@ -115,6 +115,20 @@ GRANT SELECT ON tenant_feature_overrides TO mdp_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tenant_feature_overrides TO mdp_system;
 
 /* -------------------------------------------------------------------------- */
+/* report_deliveries - the merchant may read its own history; only system writes */
+/* -------------------------------------------------------------------------- */
+ALTER TABLE report_deliveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE report_deliveries FORCE  ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_self ON report_deliveries;
+DROP POLICY IF EXISTS system_rw   ON report_deliveries;
+CREATE POLICY tenant_self ON report_deliveries FOR SELECT TO mdp_app
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+CREATE POLICY system_rw ON report_deliveries FOR ALL TO mdp_system USING (true) WITH CHECK (true);
+REVOKE ALL ON report_deliveries FROM mdp_app;
+GRANT SELECT ON report_deliveries TO mdp_app;
+GRANT SELECT, INSERT, UPDATE ON report_deliveries TO mdp_system;
+
+/* -------------------------------------------------------------------------- */
 /* memberships                                                                 */
 /* -------------------------------------------------------------------------- */
 ALTER TABLE memberships ENABLE ROW LEVEL SECURITY;
@@ -157,9 +171,13 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs FORCE  ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS append_only ON audit_logs;
 DROP POLICY IF EXISTS system_read ON audit_logs;
-CREATE POLICY append_only ON audit_logs FOR INSERT TO mdp_app, mdp_system WITH CHECK (true);
+-- Only the system role writes audit rows (recordAudit() always uses withSystem).
+-- The merchant-facing app role must not be able to forge entries attributed to
+-- another tenant or admin, so it gets no grant at all.
+CREATE POLICY append_only ON audit_logs FOR INSERT TO mdp_system WITH CHECK (true);
 CREATE POLICY system_read ON audit_logs FOR SELECT TO mdp_system USING (true);
-GRANT INSERT ON audit_logs TO mdp_app, mdp_system;
+REVOKE ALL ON audit_logs FROM mdp_app;
+GRANT INSERT ON audit_logs TO mdp_system;
 GRANT SELECT ON audit_logs TO mdp_system;
 
 /* -------------------------------------------------------------------------- */

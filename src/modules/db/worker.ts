@@ -14,6 +14,8 @@
  */
 import { rollupDay, pruneRawEvents } from '../analytics';
 import { pruneRateLimitBuckets } from '../auth/durable-rate-limit';
+import { isReportWindow } from '../notify/monthly-report';
+import { sendMonthlyReports } from '../notify/send-reports';
 import { closeDb } from './client';
 
 function yesterday(): string {
@@ -56,6 +58,15 @@ export async function runMaintenance(): Promise<void> {
     log('pruned rate-limit buckets older than 24 hours');
   } catch (error) {
     log(`FAILED pruning rate-limit buckets: ${String(error)}`);
+  }
+
+  if (isReportWindow(new Date())) {
+    try {
+      const r = await sendMonthlyReports();
+      log(`monthly reports ${r.period}: sent ${r.sent}, failed ${r.failed}, already done ${r.alreadyDone}, no number ${r.noNumber}`);
+    } catch (error) {
+      log(`FAILED monthly reports: ${String(error)}`);
+    }
   }
 
   log('done');

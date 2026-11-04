@@ -36,10 +36,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Tenants are never hard-deleted (no DELETE grant exists for anyone) - the
-  // test tenants and users this file created are left behind, same
-  // convention as every other *.spec.ts in this codebase.
-  await withSystem(({ tx }) => tx.delete(schema.categories).where(eq(schema.categories.slug, CATEGORY_SLUG)));
+  // Tenants are never hard-deleted (no DELETE grant exists for anyone), and
+  // every test above creates a real tenant referencing this category - so
+  // the category can never be deleted either (its FK would reject it). Left
+  // behind on purpose, same convention as every other *.spec.ts here.
   await closeDb();
 });
 

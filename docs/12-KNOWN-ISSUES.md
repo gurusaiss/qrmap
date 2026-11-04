@@ -137,6 +137,39 @@ consistent with the architecture's general bias against host lock-in.
   calls either library) — left as-is rather than forcing a downgrade `npm
   audit fix --force` would otherwise apply.
 
+## ADDED since the previous pass
+
+- **Customer reviews** (`modules/reviews`, `app/api/reviews`, `app/app/reviews`): a
+  no-login, no-JavaScript form on the public page. Every submission is `pending`
+  and invisible until the merchant approves it; abuse is bounded by durable
+  rate limits (3/visitor/shop/day, 40/shop/day) and a honeypot field. Covered by
+  real-Postgres tests including RLS and a DB CHECK on the rating. Merchants can switch reviews off (hides the section and refuses submissions; old reviews are kept). **Known gap:**
+  reviewer identity is unverified (a pseudonymous hash only, deliberately).
+- **Review replies**: on an approved review the merchant can post, edit or remove one
+  public reply (500 characters, shown as "Reply from <shop>" under the review). Replies
+  only appear while the review is approved; hiding the review hides its reply. One reply
+  per review, no threading, and customers are not notified of a reply.
+- **WhatsApp sharing** (`core/share.ts`): the dashboard builds a `wa.me` link with the
+  live catalog (grouped by category) and current offer. Capped at 25 items.
+- **Monthly WhatsApp report** (`modules/notify`): opt-in per merchant on the Account page,
+  sent on the 1st–3rd of the month inside 10:00–21:00 IST by the existing hourly worker,
+  at most once per shop per month (`report_deliveries`), temporary failures retried up to
+  3 times. `npm run reports:send -- --dry-run` previews every message. The report covers
+  the last 30 days, labelled as the previous calendar month. Setup: MANUAL-SETUP §9b.
+- **Catalog ordering**: items can be moved up/down within a category or the
+  uncategorised list (`reorderCatalog` previously had no UI), and photo inputs
+  show a live preview. The public menu gets a no-JS category jump bar.
+- **Admin/lifecycle test coverage** (68 new tests): slug permanence against the real
+  database (rename chains, alias redirects, taken/reserved refusal, no slug deletion),
+  suspend/activate/delete as the public sees them, the full RBAC matrix, and the
+  platform settings service (categories, plans, flags, audit trail).
+- **Security hardening found by those tests:** the merchant-facing database role had
+  an INSERT grant on `audit_logs` that no code used, so a compromised merchant
+  request could have forged audit entries for another tenant or admin. It now has
+  no access to that table; only the system role writes audit rows.
+- Two test-suite bugs that only showed on a fresh database were fixed
+  (`impersonation.spec`, `tenants.spec`).
+
 ## Architectural limitations, by design (not bugs)
 
 - **R2 storage driver is implemented but untested against a real R2 bucket**
@@ -155,10 +188,13 @@ consistent with the architecture's general bias against host lock-in.
   (which providers get tried, in what order, with credential gating) is
   fully unit-testable and tested; only the live HTTP calls to each vendor
   are unverified.
-- **No email delivery module.** The monthly merchant report's data queries
-  (`analytics/index.ts` → `monthlyReport`) are implemented and tested; the
-  delivery channel (WhatsApp/SMS/email) described in the architecture is not
-  yet built.
+- **Monthly report delivery is WhatsApp-only, and the Meta driver is untested live.**
+  The report (`notify/send-reports.ts`) is built and tested end to end with a spy
+  driver (opt-in, once per month, retries, permanent vs temporary failures, recipient
+  fallback, dry run) and the Meta Cloud API driver is tested against a stubbed `fetch`
+  for request shape and error classification. It has never talked to Meta: no
+  credentials or approved template exist in this environment. Send one real report to
+  yourself first (MANUAL-SETUP §9b). No email channel exists.
 - **No payment gateway.** The Plan & billing page (`app/app/plan`) is
   deliberately read-only — it shows the current plan, limits and live usage,
   but "upgrade" says to contact support rather than offering a button that
@@ -172,6 +208,6 @@ consistent with the architecture's general bias against host lock-in.
 ## Explicitly out of scope for this pass (per the plan itself)
 
 POS, payments, inventory, booking, full e-commerce, loyalty, website builder,
-multi-branch UI, staff scheduling, CRM, review collection, vector search,
+multi-branch UI, staff scheduling, CRM, vector search,
 native app, translated UI (i18n is architected, not translated). See
 `02-PRODUCT-SPEC.md` §4 for the reasoning.
