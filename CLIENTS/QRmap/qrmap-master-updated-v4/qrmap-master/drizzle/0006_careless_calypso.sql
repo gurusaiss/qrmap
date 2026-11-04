@@ -1,0 +1,1 @@
+ALTER TABLE "business_profiles" ADD COLUMN "reviews_enabled" boolean DEFAULT true NOT NULL;
